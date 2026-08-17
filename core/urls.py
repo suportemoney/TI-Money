@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth.views import LoginView, LogoutView
 from . import views
+from . import views_diag
 
 urlpatterns = [
     path('', views.dashboard_view, name='dashboard'),
@@ -10,6 +11,11 @@ urlpatterns = [
     ), name='login'),
     path('logout/', LogoutView.as_view(next_page='login'), name='logout'),
     path('sem-permissao/', views.sem_permissao_view, name='sem_permissao'),
+
+    # Diagnóstico temporário do 500 (staff/superuser) — remover após o incidente
+    path('diag/last-500/', views_diag.diag_last_500, name='diag_last_500'),
+    path('diag/helpdesk-check/', views_diag.diag_helpdesk_check, name='diag_helpdesk_check'),
+]
 
     # Gestão de usuários (somente ADMIN)
     path('usuarios/', views.UserListView.as_view(), name='user_list'),

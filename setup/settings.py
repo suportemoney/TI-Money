@@ -111,6 +111,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Grava último 500 em logs/last_500.txt (diagnóstico produção)
+    'core.middleware.CaptureLast500Middleware',
 ]
 
 ROOT_URLCONF = 'setup.urls'
