@@ -73,7 +73,7 @@ def arquivar_comunicados_expirados(*, agora=None) -> list[int]:
 
 
 def mensagens_letreiro_vigentes():
-    """Comunicados vigentes marcados para o letreiro neon."""
+    """Comunicados vigentes marcados para o letreiro."""
     agora = timezone.now()
     try:
         return list(
@@ -91,6 +91,11 @@ def mensagens_letreiro_vigentes():
         )
     except Exception:
         return []
+
+
+def assinatura_letreiro() -> list[int]:
+    """IDs vigentes no letreiro — usada pelo poll para detectar mudança sem F5."""
+    return [m.pk for m in mensagens_letreiro_vigentes()]
 
 
 def comunicados_recem_expirados(*, minutos: int = EXPIRADOS_JANELA_MIN):

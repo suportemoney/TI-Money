@@ -1555,3 +1555,20 @@ class CentralInformativaValidadeTestCase(TestCase):
         self.assertIn('No letreiro', textos)
         self.assertNotIn('Sem flag', textos)
         self.assertNotIn('Expirado no letreiro', textos)
+
+    def test_assinatura_letreiro_muda_com_novo_comunicado(self):
+        from helpdesk.informative_services import assinatura_letreiro
+        from helpdesk.models import InformativeMessage
+
+        antes = assinatura_letreiro()
+        InformativeMessage.objects.create(
+            text='Novo no letreiro',
+            created_by=self.ti,
+            letreiro=True,
+            valido_ate=timezone.now() + timedelta(hours=1),
+            arquivado=False,
+            ativo=True,
+        )
+        depois = assinatura_letreiro()
+        self.assertNotEqual(antes, depois)
+        self.assertTrue(depois)

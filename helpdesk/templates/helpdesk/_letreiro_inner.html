@@ -1,0 +1,13 @@
+{% if letreiro_mensagens %}
+<div class="letreiro-wrap overflow-hidden bg-transparent px-0 py-1"
+     id="helpdesk-letreiro"
+     title="Comunicados do letreiro — Central Informativa">
+    <div class="letreiro-track text-base md:text-lg">
+        {% for m in letreiro_mensagens %}
+        <span class="inline-block px-4">{{ m.text|truncatechars:160 }}</span>{% if not forloop.last %}<span class="inline-block px-2" aria-hidden="true"> · </span>{% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="hidden md:block" aria-hidden="true"></div>
+{% endif %}

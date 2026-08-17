@@ -8,6 +8,7 @@ from core.permissions import MODULO_HELPDESK, requer_modulo
 from helpdesk.models import Ticket
 
 _CHAVE_SESSAO_POLL = 'helpdesk_poll_desde'
+_CHAVE_SESSAO_LETREIRO = 'helpdesk_letreiro_ids'
 
 
 def _resolver_acao_poll(log):
@@ -72,6 +73,18 @@ def poll_ticket_updates(request):
     request.session[_CHAVE_SESSAO_POLL] = agora.isoformat()
     request.session.modified = True
 
+    letreiro_mudou = False
+    try:
+        from helpdesk.informative_services import assinatura_letreiro
+        atual_letreiro = assinatura_letreiro()
+        anterior_letreiro = request.session.get(_CHAVE_SESSAO_LETREIRO)
+        request.session[_CHAVE_SESSAO_LETREIRO] = atual_letreiro
+        request.session.modified = True
+        if anterior_letreiro is not None and list(anterior_letreiro) != list(atual_letreiro):
+            letreiro_mudou = True
+    except Exception:
+        letreiro_mudou = False
+
     if tem_mudanca and since is not None:
         from django.contrib.contenttypes.models import ContentType
         from core.models import RegistroAcao
@@ -100,5 +113,12 @@ def poll_ticket_updates(request):
                 'is_interno': bool(metadata.get('is_interno')),
             }
         }
+        if letreiro_mudou:
+            trigger_data['letreiroUpdated'] = True
         return HttpResponse(status=200, headers={'HX-Trigger': json.dumps(trigger_data)})
+    if letreiro_mudou:
+        return HttpResponse(
+            status=200,
+            headers={'HX-Trigger': json.dumps({'letreiroUpdated': True})},
+        )
     return HttpResponse(status=204)

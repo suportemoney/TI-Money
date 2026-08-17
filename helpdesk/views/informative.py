@@ -1,12 +1,16 @@
+import json
+
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
+from core.permissions import MODULO_HELPDESK, requer_modulo
 from helpdesk.informative_services import (
     arquivar_comunicados_expirados,
     comunicados_recem_expirados,
     gerar_palavras_chave,
+    mensagens_letreiro_vigentes,
     validade_padrao,
 )
 from helpdesk.models import InformativeMessage
@@ -14,6 +18,12 @@ from helpdesk.ticket_access import (
     filtrar_mensagens_informativas,
     usuario_pode_gerenciar_informativos,
 )
+
+
+def _com_trigger_letreiro(response):
+    """Pede ao header para recarregar o letreiro sem F5."""
+    response['HX-Trigger'] = json.dumps({'letreiroUpdated': True})
+    return response
 
 
 @login_required
@@ -66,6 +76,7 @@ def informative_create(request):
                 ativo=True,
                 arquivado=False,
             )
+            return _com_trigger_letreiro(informative_list(request))
     return informative_list(request)
 
 
@@ -93,7 +104,7 @@ def informative_archive(request, message_id):
     message = get_object_or_404(InformativeMessage, pk=message_id)
     if not message.arquivado:
         message.marcar_arquivado(por=request.user)
-    return informative_list(request)
+    return _com_trigger_letreiro(informative_list(request))
 
 
 @login_required
@@ -114,8 +125,8 @@ def informative_extend(request, message_id):
         request.session.modified = True
 
     if request.headers.get('HX-Request') and request.POST.get('from_modal'):
-        return HttpResponse(status=204)
-    return informative_list(request)
+        return _com_trigger_letreiro(HttpResponse(status=204))
+    return _com_trigger_letreiro(informative_list(request))
 
 
 @login_required
@@ -167,3 +178,15 @@ def informative_expired_pending(request):
             ),
         })
     return JsonResponse({'items': items})
+
+
+@login_required
+@requer_modulo(MODULO_HELPDESK)
+@require_GET
+def informative_letreiro(request):
+    """Partial do letreiro para atualização HTMX (sem F5)."""
+    return render(
+        request,
+        'helpdesk/_letreiro_inner.html',
+        {'letreiro_mensagens': mensagens_letreiro_vigentes()},
+    )

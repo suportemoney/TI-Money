@@ -73,6 +73,7 @@ urlpatterns = [
     path('informative/<int:message_id>/extend/', views.informative_extend, name='informative_extend'),
     path('informative/<int:message_id>/dismiss-expire/', views.informative_dismiss_expire, name='informative_dismiss_expire'),
     path('informative/expired-pending/', views.informative_expired_pending, name='informative_expired_pending'),
+    path('informative/letreiro/', views.informative_letreiro, name='informative_letreiro'),
 
     path('api/mention-users/', views.mention_users_search, name='mention_users_search'),
     path('api/presence/heartbeat/', views.presence_heartbeat, name='presence_heartbeat'),

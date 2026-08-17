@@ -1,11 +1,8 @@
-{% if letreiro_mensagens %}
+{% load helpdesk_permissions %}
 <style>
 @keyframes letreiro-scroll {
     0% { transform: translateX(0); }
     100% { transform: translateX(-100%); }
-}
-.letreiro-wrap {
-    overflow: hidden;
 }
 .letreiro-track {
     display: inline-block;
@@ -22,15 +19,11 @@
     animation-play-state: paused;
 }
 </style>
-<div class="letreiro-wrap flex-1 min-w-0 mx-3 md:mx-6 bg-transparent px-0 py-1"
-     id="helpdesk-letreiro"
-     title="Comunicados do letreiro — Central Informativa">
-    <div class="letreiro-track text-base md:text-lg">
-        {% for m in letreiro_mensagens %}
-        <span class="inline-block px-4">{{ m.text|truncatechars:160 }}</span>{% if not forloop.last %}<span class="inline-block px-2" aria-hidden="true"> · </span>{% endif %}
-        {% endfor %}
-    </div>
+{# Slot estável: HTMX troca só o miolo quando o poll/criação dispara letreiroUpdated #}
+<div id="helpdesk-letreiro-slot"
+     class="flex-1 min-w-0 mx-3 md:mx-6"
+     hx-get="{% url 'helpdesk:informative_letreiro' %}?v={% helpdesk_v %}"
+     hx-trigger="letreiroUpdated from:body"
+     hx-swap="innerHTML">
+    {% include "helpdesk/_letreiro_inner.html" %}
 </div>
-{% else %}
-<div class="flex-1 min-w-0 mx-3 md:mx-6 hidden md:block" aria-hidden="true"></div>
-{% endif %}
