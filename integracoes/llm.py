@@ -118,12 +118,23 @@ def _resolver_modelo_visao(integracao: IntegracaoIA) -> tuple[str, str, str]:
     return api_key, base_url, model_texto or (models[0] if models else 'gpt-4o-mini')
 
 
+def thinking_payload_para_provedor(provider: str) -> dict | None:
+    """
+    DeepSeek V4 liga thinking por padrão (reasoning_content).
+    Isso consome o budget, atrasa a chamada e deixa content/tool_calls vazios
+    — o Assistente fica 'ativo' sem postar no chat. Desliga no helpdesk.
+    """
+    if provider == IntegracaoIA.Provider.DEEPSEEK:
+        return {'type': 'disabled'}
+    return None
+
+
 def chat_completion(
     messages: list[dict[str, Any]],
     *,
     tools: list[dict] | None = None,
     temperature: float = 0.4,
-    timeout: float = 45.0,
+    timeout: float = 75.0,
 ) -> dict[str, Any]:
     """
     Chama /chat/completions. Retorna o objeto message da choice[0]
@@ -140,6 +151,9 @@ def chat_completion(
         'messages': messages,
         'temperature': temperature,
     }
+    thinking = thinking_payload_para_provedor(integracao.provider)
+    if thinking:
+        payload['thinking'] = thinking
     if tools:
         payload['tools'] = tools
         payload['tool_choice'] = 'auto'

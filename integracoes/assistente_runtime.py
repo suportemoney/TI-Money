@@ -1289,6 +1289,45 @@ _MSG_FALLBACK_ERRO = (
     'Olá! Recebi seu chamado. Estou com dificuldade técnica no momento; '
     'a equipe de TI já pode acompanhar por aqui.'
 )
+_MSG_FALLBACK_INTERNO = (
+    'Recebi o pedido interno (@assistente), mas não consegui concluir agora. '
+    'Pode repetir com mais detalhe ou tentar de novo em instantes.'
+)
+# Menção/orientação interna da TI libera estes bloqueios (o Assistente deve agir)
+_MOTIVOS_MENCAO_LIBERA = frozenset({
+    'assistente_escalado',
+    'assumido_pela_ti',
+    'solicitante_eh_operador_ti',
+})
+
+
+def _enviar_fallback_assistente(
+    ticket_id: int,
+    *,
+    gatilho: str,
+    orientacao_interna: bool,
+    erro: bool = False,
+) -> bool:
+    """Garante uma bolha quando a IA não postou nada (público ou interno)."""
+    canal_interno = gatilho in (GATILHO_MENCAO, GATILHO_ORIENTACAO) or orientacao_interna
+    texto = _MSG_FALLBACK_INTERNO if canal_interno else (
+        _MSG_FALLBACK_ERRO if erro else _MSG_FALLBACK
+    )
+    if not canal_interno:
+        ticket = Ticket.objects.filter(pk=ticket_id).first()
+        if not ticket or not assistente_pode_atuar(ticket):
+            return False
+    try:
+        send_assistente_message(
+            ticket_id,
+            texto,
+            interno=canal_interno,
+            permitir_repeticao=True,
+        )
+        return True
+    except AssistenteServiceError:
+        logger.exception('Falha ao enviar fallback do Assistente no ticket %s', ticket_id)
+        return False
 
 
 def _rodada_tools(
@@ -1299,12 +1338,15 @@ def _rodada_tools(
 ) -> bool:
     """Uma rodada de tool-calling; devolve se enviou mensagem nesta rodada/acumulado."""
     ticket = Ticket.objects.get(pk=ticket_id)
-    if not assistente_pode_atuar(ticket) and enviou_mensagem:
+    gatilho = (_rodada_ctx.get() or {}).get('gatilho') or GATILHO_AUTO
+    mencao_ou_orientacao = gatilho in (GATILHO_MENCAO, GATILHO_ORIENTACAO)
+    if not assistente_pode_atuar(ticket) and enviou_mensagem and not mencao_ou_orientacao:
         return enviou_mensagem
     if (
         ticket.assistente_escalado
         and enviou_mensagem
         and not ticket_tem_orientacao_interna_pendente(ticket)
+        and not mencao_ou_orientacao
     ):
         return enviou_mensagem
     if ticket.is_rejected and enviou_mensagem:
@@ -1323,6 +1365,11 @@ def _rodada_tools(
                 enviou_mensagem = True
             except AssistenteServiceError:
                 pass
+        elif not content and (msg.get('reasoning_content') or '').strip():
+            logger.warning(
+                'LLM devolveu só reasoning_content (thinking) no ticket %s; sem tool_calls.',
+                ticket_id,
+            )
         return enviou_mensagem
 
     for call in tool_calls:
@@ -1528,10 +1575,7 @@ def _processar_assistente_inner(
                 motivo,
             )
             return
-    elif motivo and gatilho == GATILHO_MENCAO and motivo not in (
-        'assistente_escalado',
-        'assumido_pela_ti',
-    ):
+    elif motivo and gatilho == GATILHO_MENCAO and motivo not in _MOTIVOS_MENCAO_LIBERA:
         logger.info('Assistente bloqueado no ticket %s (menção): %s', ticket_id, motivo)
         return
 
@@ -1623,30 +1667,31 @@ def _processar_assistente_inner(
                 if len(messages) == qtd_msgs:
                     break
 
-            if (
-                not enviou_mensagem
-                and not orientacao_interna
-                and assistente_pode_atuar(Ticket.objects.get(pk=ticket_id))
-            ):
-                send_assistente_message(ticket_id, _MSG_FALLBACK)
-                enviou_mensagem = True
+            if not enviou_mensagem:
+                enviou_mensagem = _enviar_fallback_assistente(
+                    ticket_id,
+                    gatilho=gatilho,
+                    orientacao_interna=orientacao_interna,
+                    erro=False,
+                )
 
             if not orientacao_interna:
                 _garantir_triagem(ticket_id, messages)
         except (LlmError, AssistenteServiceError, Exception):
             logger.exception('Falha ao processar Assistente no ticket %s', ticket_id)
-            try:
-                if (
-                    not enviou_mensagem
-                    and not orientacao_interna
-                    and assistente_pode_atuar(Ticket.objects.get(pk=ticket_id))
-                ):
-                    send_assistente_message(ticket_id, _MSG_FALLBACK_ERRO)
-            except Exception:
-                logger.exception(
-                    'Falha ao enviar fallback do Assistente no ticket %s',
-                    ticket_id,
-                )
+            if not enviou_mensagem:
+                try:
+                    _enviar_fallback_assistente(
+                        ticket_id,
+                        gatilho=gatilho,
+                        orientacao_interna=orientacao_interna,
+                        erro=True,
+                    )
+                except Exception:
+                    logger.exception(
+                        'Falha ao enviar fallback do Assistente no ticket %s',
+                        ticket_id,
+                    )
     finally:
         if contexto_ok:
             _registrar_interacao(ticket_id, chunk_ids, hybrid, informative_ids)

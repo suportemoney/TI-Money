@@ -1159,3 +1159,48 @@ class AssistenteContextualTestCase(TestCase):
             from integracoes.assistente_runtime import processar_assistente
             processar_assistente(self.ticket.pk, comment_id=c2.pk, gatilho='continuacao')
         self.assertTrue(capturado.get('autoriza_chips'))
+
+    def test_deepseek_desliga_thinking(self):
+        from integracoes.llm import thinking_payload_para_provedor
+        from integracoes.models import IntegracaoIA
+        self.assertEqual(
+            thinking_payload_para_provedor(IntegracaoIA.Provider.DEEPSEEK),
+            {'type': 'disabled'},
+        )
+        self.assertIsNone(thinking_payload_para_provedor(IntegracaoIA.Provider.CHATGPT))
+
+    def test_mencao_interna_fallback_quando_llm_falha(self):
+        """@assistente interno não pode ficar mudo se a IA falhar (ex.: thinking V4)."""
+        from unittest.mock import patch
+
+        from integracoes.assistente_runtime import processar_assistente
+        from integracoes.llm import LlmError
+        from integracoes.models import AssistenteConfig
+
+        cfg = AssistenteConfig.get_solo()
+        cfg.ativo = True
+        cfg.save(update_fields=['ativo'])
+
+        self.ticket.requester_user = self.ti
+        self.ticket.requester_name = 'TI Ctx'
+        self.ticket.assigned_to = self.ti
+        self.ticket.status = Ticket.StatusChoices.IN_PROGRESS
+        self.ticket.save()
+
+        c1 = Comment.objects.create(
+            ticket=self.ticket,
+            author=self.ti,
+            text='@assistente oi tu ta ai?',
+            is_interno=True,
+        )
+        with patch(
+            'integracoes.assistente_runtime.chat_completion',
+            side_effect=LlmError('timeout'),
+        ):
+            processar_assistente(self.ticket.pk, comment_id=c1.pk, gatilho='mencao')
+
+        internos = Comment.objects.filter(
+            ticket=self.ticket, is_assistente=True, is_interno=True,
+        )
+        self.assertTrue(internos.exists())
+        self.assertIn('@assistente', internos.first().text)
