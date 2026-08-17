@@ -10,8 +10,8 @@
 <script>
     (function() {
         const currentUserId = {{ request.user.id|default:"null" }};
-        {% usuario_ve_comentarios_internos as _ve_internos %}
-        const podeVerInternos = {% if _ve_internos %}true{% else %}false{% endif %};
+        {% usuario_ve_comentarios_internos as ve_internos %}
+        const podeVerInternos = {% if ve_internos %}true{% else %}false{% endif %};
         const URL_ALERTA_MENCAO = "{% helpdesk_static 'helpdesk/sounds/alerta-ruim.mp3' %}";
 
         const audioAtualizacao = new Audio("{% helpdesk_static 'helpdesk/sounds/atualizacao.mp3' %}");

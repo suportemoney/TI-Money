@@ -1,6 +1,6 @@
 {% load helpdesk_permissions %}
-{% usuario_ve_comentarios_internos as _ve_internos_modal %}
-{% if _ve_internos_modal %}
+{% usuario_ve_comentarios_internos as ve_internos_modal %}
+{% if ve_internos_modal %}
 <div id="informativo-expire-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" data-dismiss-backdrop></div>
     <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
