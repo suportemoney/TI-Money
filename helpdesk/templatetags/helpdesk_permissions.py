@@ -7,6 +7,7 @@ from helpdesk.mentions import MENTION_RE
 from helpdesk.ticket_access import (
     usuario_pode_contestar_chamado,
     usuario_pode_gerenciar_comentarios,
+    usuario_pode_ver_comentarios_internos,
 )
 
 register = template.Library()
@@ -40,6 +41,15 @@ def usuario_pode_menu_comentario(context):
     if not request or not request.user.is_authenticated:
         return False
     return usuario_pode_gerenciar_comentarios(request.user)
+
+
+@register.simple_tag(takes_context=True)
+def usuario_ve_comentarios_internos(context):
+    """True se o usuário logado vê mensagens internas (TI/staff)."""
+    request = context.get('request')
+    if not request or not request.user.is_authenticated:
+        return False
+    return usuario_pode_ver_comentarios_internos(request.user)
 
 
 @register.filter(name='highlight_mentions')

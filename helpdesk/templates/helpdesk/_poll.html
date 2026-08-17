@@ -10,6 +10,8 @@
 <script>
     (function() {
         const currentUserId = {{ request.user.id|default:"null" }};
+        {% usuario_ve_comentarios_internos as _ve_internos %}
+        const podeVerInternos = {% if _ve_internos %}true{% else %}false{% endif %};
         const URL_ALERTA_MENCAO = "{% helpdesk_static 'helpdesk/sounds/alerta-ruim.mp3' %}";
 
         const audioAtualizacao = new Audio("{% helpdesk_static 'helpdesk/sounds/atualizacao.mp3' %}");
@@ -49,6 +51,11 @@
             }
             const ids = detail.mention_user_ids || [];
             return ids.indexOf(currentUserId) !== -1;
+        }
+
+        /** Comentário interno: só TI/staff ouve/vê notificação de som */
+        function eventoInternoInvisivel(detail) {
+            return Boolean(detail.is_interno) && !podeVerInternos;
         }
 
         /** Toca alerta-ruim com ganho amplificado (Web Audio; volume HTML max=1). */
@@ -124,6 +131,11 @@
             const detail = event.detail || {};
 
             if (detail.actor_id && detail.actor_id === currentUserId) {
+                return;
+            }
+
+            // Interno invisível: atualiza o board via HTMX, mas sem som/notificação
+            if (eventoInternoInvisivel(detail)) {
                 return;
             }
 

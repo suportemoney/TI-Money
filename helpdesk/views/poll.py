@@ -91,6 +91,8 @@ def poll_ticket_updates(request):
                 'ticket_id': ticket_id,
                 'descricao': descricao,
                 'mention_user_ids': metadata.get('mention_user_ids') or [],
+                # Comentário interno: frontend não toca som para quem não vê interno
+                'is_interno': bool(metadata.get('is_interno')),
             }
         }
         return HttpResponse(status=200, headers={'HX-Trigger': json.dumps(trigger_data)})
