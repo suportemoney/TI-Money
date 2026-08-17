@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import timedelta
 
+from django.db.models import Q
 from django.utils import timezone
 
 from helpdesk.models import InformativeMessage
@@ -50,7 +51,7 @@ def validade_padrao(*, agora=None):
 
 def arquivar_comunicados_expirados(*, agora=None) -> list[int]:
     """
-    Arquiva comunicados com validade vencida.
+    Arquiva comunicados com validade vencida (update em lote).
     Retorna IDs recém-arquivados nesta execução (para modal TI).
     """
     agora = agora or timezone.now()
@@ -59,26 +60,37 @@ def arquivar_comunicados_expirados(*, agora=None) -> list[int]:
         valido_ate__isnull=False,
         valido_ate__lt=agora,
     )
-    ids: list[int] = []
-    for msg in qs.iterator():
-        msg.marcar_arquivado(por=None, agora=agora)
-        ids.append(msg.pk)
+    ids = list(qs.values_list('pk', flat=True)[:500])
+    if not ids:
+        return []
+    InformativeMessage.objects.filter(pk__in=ids).update(
+        arquivado=True,
+        ativo=False,
+        arquivado_em=agora,
+        arquivado_por=None,
+    )
     return ids
 
 
 def mensagens_letreiro_vigentes():
     """Comunicados vigentes marcados para o letreiro neon."""
     agora = timezone.now()
-    return (
-        InformativeMessage.objects.filter(
-            letreiro=True,
-            arquivado=False,
-            ativo=True,
-            valido_ate__gte=agora,
+    try:
+        return list(
+            InformativeMessage.objects.filter(
+                letreiro=True,
+                arquivado=False,
+                ativo=True,
+            )
+            .filter(
+                # Sem validade ou ainda vigente
+                Q(valido_ate__isnull=True) | Q(valido_ate__gte=agora),
+            )
+            .select_related('created_by')
+            .order_by('-created_at')[:20]
         )
-        .select_related('created_by')
-        .order_by('-created_at')[:20]
-    )
+    except Exception:
+        return []
 
 
 def comunicados_recem_expirados(*, minutos: int = EXPIRADOS_JANELA_MIN):

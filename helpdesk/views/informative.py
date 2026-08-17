@@ -162,7 +162,7 @@ def informative_expired_pending(request):
             'id': msg.pk,
             'text': (msg.text or '')[:280],
             'created_by': (
-                msg.created_by.get_full_name() or msg.created_by.username
+                (msg.created_by.get_full_name() or msg.created_by.username)
                 if msg.created_by_id else ''
             ),
         })
