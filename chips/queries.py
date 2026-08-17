@@ -2,7 +2,7 @@
 
 from datetime import timedelta
 
-from django.db.models import OuterRef, Subquery
+from django.db.models import Case, CharField, IntegerField, OuterRef, Subquery, Value, When
 from django.utils import timezone
 
 from chips.models import Chip, ChipMovement, Recharge
@@ -30,9 +30,20 @@ def chips_com_anotacoes_operacionais(queryset=None):
     ultimo_movimento = _ultimo_movimento_subquery()
     ultima_recarga = Recharge.objects.filter(chip=OuterRef('pk')).order_by('-timestamp')
 
+    # Titular atual só existe com chip em uso; devolvido à TI não mostra funcionário
+    titular_nome = Subquery(ultima_entrega.values('employee_name')[:1])
+    titular_user = Subquery(ultima_entrega.values('employee_user_id')[:1])
     return qs.select_related('operator', 'batch').annotate(
-        employee_name=Subquery(ultima_entrega.values('employee_name')[:1]),
-        employee_user_id=Subquery(ultima_entrega.values('employee_user_id')[:1]),
+        employee_name=Case(
+            When(usage_status=Chip.UsageChoices.IN_USE, then=titular_nome),
+            default=Value(''),
+            output_field=CharField(),
+        ),
+        employee_user_id=Case(
+            When(usage_status=Chip.UsageChoices.IN_USE, then=titular_user),
+            default=Value(None),
+            output_field=IntegerField(),
+        ),
         last_delivery_at=Subquery(ultima_entrega.values('timestamp')[:1]),
         last_movement_at=Subquery(ultimo_movimento.values('timestamp')[:1]),
         last_recharge_at=Subquery(ultima_recarga.values('timestamp')[:1]),
@@ -96,12 +107,13 @@ def chip_para_grid_dict(chip):
     """Serializa um chip anotado para JSON do Tabulator."""
     envelope_label = chip.batch.label if chip.batch_id else ''
     recharge_due_at, days_to_recharge, recharge_status = _calcular_ciclo(chip)
+    em_uso = chip.usage_status == Chip.UsageChoices.IN_USE
 
     return {
         'id': chip.id,
         'line_number': chip.formatted_line_number,
-        'employee_name': chip.employee_name or '',
-        'employee_user_id': chip.employee_user_id,
+        'employee_name': (chip.employee_name or '') if em_uso else '',
+        'employee_user_id': chip.employee_user_id if em_uso else None,
         'activated_at': chip.activated_at.isoformat() if chip.activated_at else '',
         'last_delivery_at': (
             _para_data(chip.last_delivery_at).isoformat()

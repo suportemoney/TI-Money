@@ -102,6 +102,7 @@ def devolver_para_ti(chip, *, actor, batch=None):
         chip=chip,
         employee_name=nome_anterior,
         employee_user=anterior.employee_user if anterior else None,
+        employee_operador=anterior.employee_operador if anterior else None,
         action=ChipMovement.ActionChoices.RETURN,
         registered_by=actor,
     )
