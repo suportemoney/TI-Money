@@ -2,7 +2,7 @@
     <form hx-post="{% url 'helpdesk:informative_create' %}"
           hx-target="#informative-chat-messages"
           class="flex flex-col gap-2"
-          onsubmit="setTimeout(() => { this.reset(); this.querySelector('textarea').style.height='auto'; }, 50)">
+          onsubmit="setTimeout(() => { this.reset(); this.querySelector('textarea').style.height='auto'; var c=this.querySelector('#info-letreiro'); if(c) c.checked=false; }, 50)">
         <div class="flex items-end gap-2">
             <textarea name="text"
                       rows="1"
@@ -18,17 +18,11 @@
                 </svg>
             </button>
         </div>
-        <div class="flex flex-wrap gap-2">
-            <input type="text"
-                   name="palavras_chave"
-                   maxlength="400"
-                   class="flex-1 min-w-[12rem] text-xs px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                   placeholder="Palavras-chave (vírgula): joytec, discador, 524">
-            <input type="date"
-                   name="valido_ate"
-                   class="text-xs px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                   title="Validade opcional">
-        </div>
-        <p class="text-[10px] text-slate-400">Palavras-chave e validade ajudam o Assistente a usar o comunicado nos chamados.</p>
+        <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+            <input type="checkbox" id="info-letreiro" name="letreiro" value="1"
+                   class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            Exibir no letreiro (header)
+        </label>
+        <p class="text-[10px] text-slate-400">Validade automática de 2h. Palavras-chave geradas pelo sistema para o Assistente.</p>
     </form>
 </div>

@@ -1,0 +1,124 @@
+{% load helpdesk_permissions %}
+{% usuario_ve_comentarios_internos as _ve_internos_modal %}
+{% if _ve_internos_modal %}
+<div id="informativo-expire-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" data-dismiss-backdrop></div>
+    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-amber-100 bg-amber-50">
+            <h3 class="text-sm font-bold text-amber-900">Comunicado expirou (2h)</h3>
+            <p class="text-xs text-amber-800 mt-0.5">Deseja prorrogar a validade por mais 2 horas?</p>
+        </div>
+        <div class="px-5 py-4">
+            <p id="informativo-expire-text" class="text-sm text-slate-700 whitespace-pre-wrap"></p>
+            <p id="informativo-expire-author" class="text-xs text-slate-400 mt-2"></p>
+        </div>
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+            <button type="button" id="informativo-expire-keep"
+                    class="px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                Manter arquivado
+            </button>
+            <button type="button" id="informativo-expire-extend"
+                    class="px-3 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors">
+                Prorrogar +2h
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    if (window.__informativoExpireInit) return;
+    window.__informativoExpireInit = true;
+
+    const modal = document.getElementById('informativo-expire-modal');
+    const textEl = document.getElementById('informativo-expire-text');
+    const authorEl = document.getElementById('informativo-expire-author');
+    const btnKeep = document.getElementById('informativo-expire-keep');
+    const btnExtend = document.getElementById('informativo-expire-extend');
+    if (!modal) return;
+
+    let fila = [];
+    let atual = null;
+
+    function csrf() {
+        const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function esconder() {
+        modal.classList.add('hidden');
+        atual = null;
+    }
+
+    function mostrarProximo() {
+        if (!fila.length) {
+            esconder();
+            return;
+        }
+        atual = fila.shift();
+        textEl.textContent = atual.text || '';
+        authorEl.textContent = atual.created_by ? ('Por ' + atual.created_by) : '';
+        modal.classList.remove('hidden');
+    }
+
+    function postUrl(url) {
+        return fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': csrf(),
+                'X-Requested-With': 'XMLHttpRequest',
+                'HX-Request': 'true',
+            },
+            body: new URLSearchParams({ from_modal: '1' }),
+        });
+    }
+
+    btnKeep.addEventListener('click', function() {
+        if (!atual) return;
+        const id = atual.id;
+        postUrl('/helpdesk/informative/' + id + '/dismiss-expire/').finally(mostrarProximo);
+    });
+
+    btnExtend.addEventListener('click', function() {
+        if (!atual) return;
+        const id = atual.id;
+        postUrl('/helpdesk/informative/' + id + '/extend/').finally(function() {
+            mostrarProximo();
+            document.body.dispatchEvent(new CustomEvent('ticketUpdated'));
+        });
+    });
+
+    modal.querySelector('[data-dismiss-backdrop]').addEventListener('click', function() {
+        if (atual) {
+            postUrl('/helpdesk/informative/' + atual.id + '/dismiss-expire/').finally(mostrarProximo);
+        } else {
+            esconder();
+        }
+    });
+
+    function checarExpirados() {
+        fetch('{% url "helpdesk:informative_expired_pending" %}', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        .then(function(r) { return r.ok ? r.json() : { items: [] }; })
+        .then(function(data) {
+            const items = data.items || [];
+            if (!items.length) return;
+            const idsNaFila = {};
+            fila.forEach(function(i) { idsNaFila[i.id] = true; });
+            if (atual) idsNaFila[atual.id] = true;
+            items.forEach(function(it) {
+                if (!idsNaFila[it.id]) fila.push(it);
+            });
+            if (modal.classList.contains('hidden')) mostrarProximo();
+        })
+        .catch(function() {});
+    }
+
+    // Primeira checagem + a cada poll (~20s)
+    setTimeout(checarExpirados, 2500);
+    setInterval(checarExpirados, 20000);
+})();
+</script>
+{% endif %}

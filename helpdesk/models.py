@@ -602,21 +602,40 @@ class InformativeMessage(models.Model):
     """
     Mensagens informativas trocadas no chat 'Central Informativa'.
     """
+    VALIDADE_PADRAO = timedelta(hours=2)
+
     text = models.TextField(help_text='Conteúdo da mensagem.')
     palavras_chave = models.CharField(
         max_length=400,
         blank=True,
         default='',
-        help_text='Palavras-chave separadas por vírgula para o Assistente consultar.',
+        help_text='Palavras-chave geradas pelo sistema (vírgula) para o Assistente.',
     )
-    valido_ate = models.DateField(
+    valido_ate = models.DateTimeField(
         null=True,
         blank=True,
-        help_text='Opcional: data de validade do comunicado (inclusive).',
+        help_text='Validade do comunicado (padrão: 2h após a criação).',
     )
     ativo = models.BooleanField(
         default=True,
-        help_text='Se falso, o Assistente ignora o comunicado.',
+        help_text='Espelho de não-arquivado (IA e listagens legadas).',
+    )
+    arquivado = models.BooleanField(
+        default=False,
+        help_text='Arquivado: oculto de usuários comuns e fora da IA.',
+    )
+    letreiro = models.BooleanField(
+        default=False,
+        help_text='Exibir no letreiro neon do header do Helpdesk.',
+    )
+    arquivado_em = models.DateTimeField(null=True, blank=True)
+    arquivado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='informativos_arquivados',
+        help_text='Quem arquivou manualmente (null se expirou automaticamente).',
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -642,12 +661,35 @@ class InformativeMessage(models.Model):
 
     @property
     def vigente(self) -> bool:
-        """True se ativo e sem validade expirada."""
-        if not self.ativo:
+        """True se não arquivado e ainda dentro da validade."""
+        if self.arquivado or not self.ativo:
             return False
         if self.valido_ate is None:
             return True
-        return self.valido_ate >= timezone.localdate()
+        return self.valido_ate >= timezone.now()
+
+    def marcar_arquivado(self, *, por=None, agora=None):
+        """Arquiva o comunicado (manual ou por expiração)."""
+        agora = agora or timezone.now()
+        self.arquivado = True
+        self.ativo = False
+        self.arquivado_em = agora
+        self.arquivado_por = por
+        self.save(update_fields=[
+            'arquivado', 'ativo', 'arquivado_em', 'arquivado_por',
+        ])
+
+    def prorrogar(self, *, horas=2):
+        """Prorroga a validade e desarquiva."""
+        agora = timezone.now()
+        self.valido_ate = agora + timedelta(hours=horas)
+        self.arquivado = False
+        self.ativo = True
+        self.arquivado_em = None
+        self.arquivado_por = None
+        self.save(update_fields=[
+            'valido_ate', 'arquivado', 'ativo', 'arquivado_em', 'arquivado_por',
+        ])
 
 
 class UserPresence(models.Model):

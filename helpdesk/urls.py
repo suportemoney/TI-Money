@@ -69,6 +69,10 @@ urlpatterns = [
     path('informative/list/', views.informative_list, name='informative_list'),
     path('informative/create/', views.informative_create, name='informative_create'),
     path('informative/<int:message_id>/acknowledge/', views.informative_acknowledge, name='informative_acknowledge'),
+    path('informative/<int:message_id>/archive/', views.informative_archive, name='informative_archive'),
+    path('informative/<int:message_id>/extend/', views.informative_extend, name='informative_extend'),
+    path('informative/<int:message_id>/dismiss-expire/', views.informative_dismiss_expire, name='informative_dismiss_expire'),
+    path('informative/expired-pending/', views.informative_expired_pending, name='informative_expired_pending'),
 
     path('api/mention-users/', views.mention_users_search, name='mention_users_search'),
     path('api/presence/heartbeat/', views.presence_heartbeat, name='presence_heartbeat'),

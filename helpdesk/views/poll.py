@@ -53,6 +53,11 @@ def poll_ticket_updates(request):
     except Exception:
         # Poll não pode quebrar por falha no follow-up
         pass
+    try:
+        from helpdesk.informative_services import arquivar_comunicados_expirados
+        arquivar_comunicados_expirados(agora=agora)
+    except Exception:
+        pass
     since_raw = request.session.get(_CHAVE_SESSAO_POLL)
 
     tem_mudanca = False

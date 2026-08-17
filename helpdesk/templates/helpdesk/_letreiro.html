@@ -1,0 +1,41 @@
+{% if letreiro_mensagens %}
+<style>
+@keyframes letreiro-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+.letreiro-track {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: letreiro-scroll 28s linear infinite;
+}
+.letreiro-neon {
+    color: #e0f2fe;
+    text-shadow:
+        0 0 4px #22d3ee,
+        0 0 10px #a855f7,
+        0 0 18px #6366f1;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.letreiro-wrap:hover .letreiro-track {
+    animation-play-state: paused;
+}
+</style>
+<div class="letreiro-wrap flex-1 min-w-0 mx-3 md:mx-6 overflow-hidden rounded-lg border border-indigo-400/40 bg-slate-950 px-2 py-1.5 shadow-inner"
+     id="helpdesk-letreiro"
+     title="Comunicados do letreiro — Central Informativa">
+    <div class="letreiro-track letreiro-neon text-xs md:text-sm">
+        {% for m in letreiro_mensagens %}
+        <span class="inline-block px-6">{{ m.text|truncatechars:160 }}</span>
+        <span class="inline-block text-fuchsia-300/80 px-2">✦</span>
+        {% endfor %}
+        {% for m in letreiro_mensagens %}
+        <span class="inline-block px-6">{{ m.text|truncatechars:160 }}</span>
+        <span class="inline-block text-fuchsia-300/80 px-2">✦</span>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="flex-1 min-w-0 mx-3 md:mx-6 hidden md:block" aria-hidden="true"></div>
+{% endif %}

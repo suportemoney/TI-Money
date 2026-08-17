@@ -1,13 +1,19 @@
 <div class="flex flex-col gap-4 pb-4">
     {% for message in messages %}
-    <div class="flex flex-col gap-1 {% if message.created_by == request.user %}items-end{% else %}items-start{% endif %}">
-        <div class="flex items-center gap-2 text-[11px] text-slate-500 mb-0.5 px-1 font-medium">
+    <div class="flex flex-col gap-1 {% if message.created_by == request.user %}items-end{% else %}items-start{% endif %} {% if message.arquivado %}opacity-60{% endif %}">
+        <div class="flex items-center gap-2 text-[11px] text-slate-500 mb-0.5 px-1 font-medium flex-wrap">
             <span class="text-slate-700 font-bold">{{ message.created_by.get_full_name|default:message.created_by.username }}</span>
             {% if message.created_by.role == 'ADMIN' or message.created_by.role == 'IT_USER' or message.created_by.is_superuser %}
             <span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px]">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                 Equipe TI
             </span>
+            {% endif %}
+            {% if message.arquivado %}
+            <span class="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-bold text-[10px] uppercase">Arquivado</span>
+            {% endif %}
+            {% if message.letreiro and not message.arquivado %}
+            <span class="bg-fuchsia-100 text-fuchsia-700 px-1.5 py-0.5 rounded-md font-bold text-[10px]">Letreiro</span>
             {% endif %}
             <span>&bull;</span>
             <span>{{ message.created_at|date:"d/m H:i" }}</span>
@@ -16,14 +22,14 @@
             <div class="flex-1 min-w-0 px-4 py-2.5 shadow-sm text-sm break-all {% if message.created_by == request.user %}bg-indigo-600 text-white rounded-2xl rounded-tr-sm{% else %}bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-tl-sm{% endif %}"
                 style="word-break: break-word; overflow-wrap: anywhere; word-wrap: break-word;">
                 {{ message.text|linebreaksbr }}
-                {% if message.palavras_chave or message.valido_ate %}
-                <div class="mt-2 pt-2 border-t {% if message.created_by == request.user %}border-indigo-500/40{% else %}border-slate-100{% endif %} text-[10px] opacity-80">
+                <div class="mt-2 pt-2 border-t {% if message.created_by == request.user %}border-indigo-500/40{% else %}border-slate-100{% endif %} text-[10px] opacity-80 flex flex-wrap gap-x-2 gap-y-1">
                     {% if message.palavras_chave %}<span>🔑 {{ message.palavras_chave }}</span>{% endif %}
-                    {% if message.valido_ate %}<span class="ml-2">até {{ message.valido_ate|date:"d/m/Y" }}</span>{% endif %}
+                    {% if message.valido_ate %}
+                    <span>até {{ message.valido_ate|date:"d/m H:i" }}</span>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
-            
+
             <button type="button"
                     hx-post="{% url 'helpdesk:informative_acknowledge' message.id %}"
                     hx-target="#informative-chat-messages"
@@ -33,9 +39,34 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>
             </button>
-            
+
+            {% if pode_gerenciar_informativos %}
+            {% if not message.arquivado %}
+            <button type="button"
+                    hx-post="{% url 'helpdesk:informative_archive' message.id %}"
+                    hx-target="#informative-chat-messages"
+                    hx-confirm="Arquivar este comunicado?"
+                    class="p-1.5 rounded-full text-slate-400 hover:text-red-600 bg-white shadow-sm border border-slate-200"
+                    title="Arquivar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                </svg>
+            </button>
+            {% else %}
+            <button type="button"
+                    hx-post="{% url 'helpdesk:informative_extend' message.id %}"
+                    hx-target="#informative-chat-messages"
+                    class="p-1.5 rounded-full text-amber-600 hover:text-amber-800 bg-amber-50 shadow-sm border border-amber-200"
+                    title="Prorrogar +2h">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </button>
+            {% endif %}
+            {% endif %}
+
             {% if message.acknowledged_by.exists %}
-            <div class="text-[10px] text-slate-400 font-medium px-1 flex -space-x-1" 
+            <div class="text-[10px] text-slate-400 font-medium px-1 flex -space-x-1"
                  title="OK de: {% for u in message.acknowledged_by.all %}{{ u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}">
                 <span class="bg-slate-100 border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full z-10 flex items-center gap-1">
                     <svg class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
@@ -55,14 +86,11 @@
     {% endfor %}
 </div>
 
-<!-- Scrolldown automático apenas se o usuário estiver próximo ao fim ou acabou de enviar -->
 <script>
     (function(){
         const container = document.getElementById('informative-chat-messages');
         if (container) {
-            // Se o usuário estava perto do final, desce o scroll
             const isScrolledToBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
-            // Se for a primeira carga ou estiver no final
             if (!container.dataset.initialized || isScrolledToBottom) {
                 container.scrollTop = container.scrollHeight;
                 container.dataset.initialized = 'true';

@@ -1068,6 +1068,8 @@ class AssistenteContextualTestCase(TestCase):
             palavras_chave='joytec, discador, 524',
             created_by=self.ti,
             ativo=True,
+            arquivado=False,
+            valido_ate=timezone.now() + timedelta(hours=2),
         )
         itens = buscar_comunicados_relevantes(self.ticket, limite=3)
         self.assertTrue(itens)
@@ -1429,3 +1431,127 @@ class ConsultarChipsTitularTestCase(TestCase):
         self.assertIn(self.chip.pk, ids)
         item = next(x for x in r['results'] if x['id'] == self.chip.pk)
         self.assertEqual(item['employee_name'], 'Kamilly Oliveira')
+
+
+class CentralInformativaValidadeTestCase(TestCase):
+    """Validade 2h, archive, keywords e exclusão da IA."""
+
+    def setUp(self):
+        self.ti = CustomUser.objects.create_user(
+            username='ti_info', password='pass', role=CustomUser.RoleChoices.IT_USER,
+        )
+        self.user = CustomUser.objects.create_user(
+            username='user_info', password='pass', role=CustomUser.RoleChoices.STANDARD,
+        )
+        self.categoria = TicketCategory.objects.get_or_create(
+            name='Dúvidas', defaults={'is_active': True},
+        )[0]
+        self.ticket = Ticket.objects.create(
+            title='JoyTec 524 timeout',
+            description='discador fora',
+            category=self.categoria,
+            created_by=self.user,
+            requester_user=self.user,
+            requester_name='User Info',
+        )
+
+    def test_gerar_keywords_e_validade_padrao(self):
+        from helpdesk.informative_services import gerar_palavras_chave, validade_padrao
+        from helpdesk.models import InformativeMessage
+
+        chaves = gerar_palavras_chave('Instabilidade nas fichas e fluxo de chamadas JoyTec')
+        self.assertIn('joytec', chaves.lower())
+        self.assertNotIn('nas', chaves.split(', '))
+
+        agora = timezone.now()
+        msg = InformativeMessage.objects.create(
+            text='Instabilidade nas fichas JoyTec discador',
+            created_by=self.ti,
+            palavras_chave=gerar_palavras_chave('Instabilidade nas fichas JoyTec discador'),
+            valido_ate=validade_padrao(agora=agora),
+            letreiro=True,
+        )
+        delta = msg.valido_ate - agora
+        self.assertAlmostEqual(delta.total_seconds(), 2 * 3600, delta=5)
+
+    def test_arquivar_expirado_esconde_de_normal_e_ia(self):
+        from helpdesk.informative_retrieval import buscar_comunicados_relevantes
+        from helpdesk.informative_services import arquivar_comunicados_expirados
+        from helpdesk.models import InformativeMessage
+        from helpdesk.ticket_access import filtrar_mensagens_informativas
+
+        msg = InformativeMessage.objects.create(
+            text='JoyTec discador 524 instável',
+            palavras_chave='joytec, discador, 524',
+            created_by=self.ti,
+            valido_ate=timezone.now() - timedelta(minutes=1),
+            ativo=True,
+            arquivado=False,
+        )
+        ids = arquivar_comunicados_expirados()
+        self.assertIn(msg.pk, ids)
+        msg.refresh_from_db()
+        self.assertTrue(msg.arquivado)
+        self.assertFalse(msg.ativo)
+
+        ids_user = set(
+            filtrar_mensagens_informativas(self.user).values_list('pk', flat=True)
+        )
+        self.assertNotIn(msg.pk, ids_user)
+        ids_ti = set(
+            filtrar_mensagens_informativas(self.ti).values_list('pk', flat=True)
+        )
+        self.assertIn(msg.pk, ids_ti)
+
+        itens = buscar_comunicados_relevantes(self.ticket, limite=5)
+        self.assertFalse(any(i['id'] == msg.pk for i in itens))
+
+    def test_prorrogar_desarquiva(self):
+        from helpdesk.models import InformativeMessage
+
+        msg = InformativeMessage.objects.create(
+            text='Aviso curto',
+            created_by=self.ti,
+            valido_ate=timezone.now() - timedelta(minutes=5),
+            arquivado=True,
+            ativo=False,
+            arquivado_em=timezone.now(),
+        )
+        msg.prorrogar(horas=2)
+        msg.refresh_from_db()
+        self.assertFalse(msg.arquivado)
+        self.assertTrue(msg.ativo)
+        self.assertGreater(msg.valido_ate, timezone.now())
+
+    def test_letreiro_so_vigente_com_flag(self):
+        from helpdesk.informative_services import mensagens_letreiro_vigentes
+        from helpdesk.models import InformativeMessage
+
+        InformativeMessage.objects.create(
+            text='No letreiro',
+            created_by=self.ti,
+            letreiro=True,
+            valido_ate=timezone.now() + timedelta(hours=1),
+            arquivado=False,
+            ativo=True,
+        )
+        InformativeMessage.objects.create(
+            text='Sem flag',
+            created_by=self.ti,
+            letreiro=False,
+            valido_ate=timezone.now() + timedelta(hours=1),
+            arquivado=False,
+            ativo=True,
+        )
+        InformativeMessage.objects.create(
+            text='Expirado no letreiro',
+            created_by=self.ti,
+            letreiro=True,
+            valido_ate=timezone.now() - timedelta(minutes=1),
+            arquivado=True,
+            ativo=False,
+        )
+        textos = [m.text for m in mensagens_letreiro_vigentes()]
+        self.assertIn('No letreiro', textos)
+        self.assertNotIn('Sem flag', textos)
+        self.assertNotIn('Expirado no letreiro', textos)

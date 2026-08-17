@@ -36,9 +36,12 @@ def _chave_tokens(palavras_chave: str) -> set[str]:
 
 def buscar_comunicados_relevantes(ticket: Ticket, *, limite: int = 5) -> list[dict[str, Any]]:
     """Busca comunicados ativos/vigentes por palavras-chave e texto do chamado."""
-    hoje = timezone.localdate()
-    qs = InformativeMessage.objects.filter(ativo=True).filter(
-        Q(valido_ate__isnull=True) | Q(valido_ate__gte=hoje),
+    agora = timezone.now()
+    qs = InformativeMessage.objects.filter(
+        arquivado=False,
+        ativo=True,
+    ).filter(
+        Q(valido_ate__isnull=True) | Q(valido_ate__gte=agora),
     ).select_related('created_by').order_by('-created_at')[:80]
 
     tag_nome = ''
