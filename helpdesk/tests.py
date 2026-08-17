@@ -1375,3 +1375,57 @@ class AssistenteQuestionarioTestCase(TestCase):
         self.assertGreater(len(comment.text), 280)
         self.assertLessEqual(len(comment.text), 1400)
         self.assertIn('horário do erro', comment.text)
+
+
+class ConsultarChipsTitularTestCase(TestCase):
+    """Busca por titular atual (TRANSFER) e número com DDI."""
+
+    def setUp(self):
+        from chips.models import Batch, Chip, ChipMovement, Operator
+
+        self.operator = Operator.objects.create(name='TIM Teste Chip')
+        self.batch = Batch.objects.create(nome='Env Teste')
+        self.actor = CustomUser.objects.create_user(
+            username='ti_chip_q', password='x', role=CustomUser.RoleChoices.IT_USER,
+        )
+        # Chip entregue a outra pessoa e depois transferido para Kamilly
+        self.chip = Chip.objects.create(
+            line_number='51982163409',
+            operator=self.operator,
+            batch=self.batch,
+            usage_status=Chip.UsageChoices.IN_USE,
+            status=Chip.StatusChoices.ACTIVE,
+        )
+        ChipMovement.objects.create(
+            chip=self.chip,
+            employee_name='Outra Pessoa',
+            action=ChipMovement.ActionChoices.DELIVERY,
+            registered_by=self.actor,
+        )
+        ChipMovement.objects.create(
+            chip=self.chip,
+            employee_name='Kamilly Oliveira',
+            action=ChipMovement.ActionChoices.TRANSFER,
+            registered_by=self.actor,
+        )
+
+    def test_busca_por_nome_acha_titular_via_transfer(self):
+        from helpdesk.assistente_services import consultar_chips
+
+        r = consultar_chips('Kamilly')
+        self.assertTrue(r['ok'])
+        ids = [x['id'] for x in r['results']]
+        self.assertIn(self.chip.pk, ids)
+        item = next(x for x in r['results'] if x['id'] == self.chip.pk)
+        self.assertEqual(item['employee_name'], 'Kamilly Oliveira')
+        self.assertEqual(item['match'], 'titular_atual')
+
+    def test_busca_por_numero_com_ddi_55(self):
+        from helpdesk.assistente_services import consultar_chips
+
+        r = consultar_chips('55 51 8216-3409')
+        self.assertTrue(r['ok'])
+        ids = [x['id'] for x in r['results']]
+        self.assertIn(self.chip.pk, ids)
+        item = next(x for x in r['results'] if x['id'] == self.chip.pk)
+        self.assertEqual(item['employee_name'], 'Kamilly Oliveira')

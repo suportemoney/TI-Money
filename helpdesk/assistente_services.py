@@ -1326,8 +1326,33 @@ def _dados_chip_consulta(chip, employee_name=None, ultima_entrega=None, match=''
     }
 
 
+def _titular_movimento_chip(chip):
+    """Última entrega/transferência = titular atual (igual ao grid de chips)."""
+    from chips.models import ChipMovement
+
+    return (
+        ChipMovement.objects.filter(
+            chip=chip,
+            action__in=[
+                ChipMovement.ActionChoices.DELIVERY,
+                ChipMovement.ActionChoices.TRANSFER,
+            ],
+        )
+        .order_by('-timestamp')
+        .first()
+    )
+
+
+def _normalizar_digitos_linha(valor: str) -> str:
+    """Mantém só dígitos; remove DDI 55 se sobrar 12–13 dígitos BR."""
+    digits = ''.join(c for c in (valor or '') if c.isdigit())
+    if len(digits) in (12, 13) and digits.startswith('55'):
+        digits = digits[2:]
+    return digits
+
+
 def consultar_chips(q: str, limit: int = 20) -> dict:
-    """Busca chips por linha, observação ou nome do consultor (última entrega)."""
+    """Busca chips por linha, observação ou titular atual (entrega/transferência)."""
     from chips.models import Chip, ChipMovement
 
     termo = (q or '').strip()
@@ -1337,11 +1362,15 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
     limit = max(1, min(int(limit or 20), 50))
     resultados: list[dict] = []
     visto: set[int] = set()
+    digitos = _normalizar_digitos_linha(termo)
 
-    # Chips cujo último movimento de entrega bate com o nome
+    # 1) Titular atual: última DELIVERY/TRANSFER cujo nome contém o termo
     movs = (
         ChipMovement.objects.filter(
-            action=ChipMovement.ActionChoices.DELIVERY,
+            action__in=[
+                ChipMovement.ActionChoices.DELIVERY,
+                ChipMovement.ActionChoices.TRANSFER,
+            ],
             employee_name__icontains=termo,
         )
         .select_related(
@@ -1350,29 +1379,41 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
             'chip__email_vinculado',
             'chip__email_vinculado__domain',
         )
-        .order_by('-timestamp')[:80]
+        .order_by('-timestamp')[:120]
     )
     for mov in movs:
         chip = mov.chip
         if chip.pk in visto:
             continue
+        # Só conta se este movimento ainda for o titular atual do chip
+        titular = _titular_movimento_chip(chip)
+        if not titular or titular.pk != mov.pk:
+            continue
         visto.add(chip.pk)
         resultados.append(_dados_chip_consulta(
             chip,
-            employee_name=mov.employee_name,
-            ultima_entrega=mov.timestamp.isoformat() if mov.timestamp else None,
-            match='entrega',
+            employee_name=titular.employee_name,
+            ultima_entrega=titular.timestamp.isoformat() if titular.timestamp else None,
+            match='titular_atual',
         ))
         if len(resultados) >= limit:
             break
 
+    # 2) Busca por número (com/sem máscara/DDI), observação ou ICCID
     if len(resultados) < limit:
+        filtros = (
+            Q(line_number__icontains=termo)
+            | Q(observacao__icontains=termo)
+            | Q(iccid__icontains=termo)
+        )
+        if digitos and digitos != termo:
+            filtros = filtros | Q(line_number__icontains=digitos)
+        # Sufixo curto (últimos 4–8) ajuda quando o usuário manda o número parcial
+        if digitos and 4 <= len(digitos) <= 11:
+            filtros = filtros | Q(line_number__endswith=digitos[-8:] if len(digitos) >= 8 else digitos)
+
         qs = (
-            Chip.objects.filter(
-                Q(line_number__icontains=termo)
-                | Q(observacao__icontains=termo)
-                | Q(iccid__icontains=termo)
-            )
+            Chip.objects.filter(filtros)
             .select_related('operator', 'email_vinculado', 'email_vinculado__domain')
             .order_by('-updated_at')[:limit]
         )
@@ -1380,13 +1421,7 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
             if chip.pk in visto:
                 continue
             visto.add(chip.pk)
-            last = (
-                ChipMovement.objects.filter(
-                    chip=chip, action=ChipMovement.ActionChoices.DELIVERY,
-                )
-                .order_by('-timestamp')
-                .first()
-            )
+            last = _titular_movimento_chip(chip)
             resultados.append(_dados_chip_consulta(
                 chip,
                 employee_name=last.employee_name if last else None,
@@ -1402,14 +1437,22 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
     return {
         'ok': True,
         'q': termo,
+        'q_digits': digitos or None,
         'count': len(resultados),
         'em_uso_count': len(em_uso),
         'results': resultados,
         'orientacao': (
-            'Se o consultor já tiver 2 números em uso, questionar se algum pede código '
-            'antes de ativar chip novo.'
-            if len(em_uso) >= 2
-            else ''
+            'Liste TODOS os chips em uso do titular na pergunta (não omita). '
+            'Se o solicitante informar outro número: consultar_chips com esse número, '
+            'compare o employee_name com o nome esperado e questione a inconsistência '
+            '(enviar_pergunta_opcoes / enviar_esclarecimento) antes de escalar_para_ti. '
+            'Se já tiver 2+ em uso, confirme qual pede código antes de chip novo.'
+            if resultados
+            else (
+                'Nenhum chip encontrado com este termo. Se o solicitante passou um número, '
+                'tente consultar_chips só com os dígitos do número; se achar titular diferente '
+                'do nome do chamado, questione antes de escalar.'
+            )
         ),
     }
 

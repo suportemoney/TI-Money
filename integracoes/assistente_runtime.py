@@ -341,9 +341,12 @@ TOOLS_SPEC = [
         'function': {
             'name': 'consultar_chips',
             'description': (
-                'Consulta chips WhatsApp por nome do consultor ou número da linha '
-                '(quantos em uso, status, e-mail vinculado). NÃO cria nem registra chip novo — '
-                'entrega/troca de chip é ação humana da TI (mensagem interna + escalar).'
+                'Consulta chips WhatsApp por nome do titular atual (entrega/transferência) '
+                'ou número da linha (aceita DDI 55, espaços e máscara). '
+                'Retorna usage_status, employee_name e orientação. '
+                'Se o usuário informar um número fora da lista, consulte esse número e '
+                'compare o titular antes de escalar. '
+                'NÃO cria nem registra chip novo — entrega/troca é ação humana da TI.'
             ),
             'parameters': {
                 'type': 'object',
@@ -1164,6 +1167,10 @@ def _system_prompt() -> str:
         '(@login) em send_assistente_message (interno se o pedido veio interno).\n'
         '- E-mail/chip: consultar_email e consultar_chips pelo nome; sobrenome extra '
         'não significa "não cadastrado". Se a tool retornar address/email, informe.\n'
+        '- Chip: se o solicitante disser que nenhum das opções é o número, ou informar '
+        'outro número, chame consultar_chips com esse número. Se o titular for outro '
+        'nome (ou divergir do chamado), questione com enviar_pergunta_opcoes / '
+        'enviar_esclarecimento — não escale só porque "não estava na lista".\n'
         '- Chips: a TI autoriza com @assistente interno e a autorização segue valendo '
         'nas mensagens internas seguintes. Resolva a operadora com '
         'listar_operadoras_chips; nunca peça o id da operadora à TI.\n'
