@@ -1204,3 +1204,46 @@ class AssistenteContextualTestCase(TestCase):
         )
         self.assertTrue(internos.exists())
         self.assertIn('@assistente', internos.first().text)
+
+    def test_consultar_email_acha_com_sobrenome_extra(self):
+        from emails.models import EmailAccount, EmailDomain
+        from helpdesk.assistente_services import consultar_email
+        from mcp_api.serializers import serialize_email_account
+
+        dominio = EmailDomain.objects.create(name='gmail.com')
+        conta = EmailAccount.objects.create(
+            username='vitoriacamargo.moneypromotora',
+            domain=dominio,
+            employee_name='Vitoria Silva',
+            status=EmailAccount.StatusChoices.ACTIVE,
+        )
+        serial = serialize_email_account(conta)
+        self.assertEqual(serial['address'], 'vitoriacamargo.moneypromotora@gmail.com')
+        self.assertNotIn('last_password_reset', serial)
+
+        r = consultar_email('Vitoria Silva Camargo')
+        self.assertGreaterEqual(r['count'], 1)
+        enderecos = [i['address'] for i in r['results']]
+        self.assertIn('vitoriacamargo.moneypromotora@gmail.com', enderecos)
+
+    def test_assistente_menciona_usuario_nao_ti(self):
+        from helpdesk.assistente_services import send_assistente_message
+        from helpdesk.models import TicketMention
+
+        leticia = CustomUser.objects.create_user(
+            username='leticia',
+            password='pass',
+            first_name='Leticia',
+            role=CustomUser.RoleChoices.STANDARD,
+        )
+        r = send_assistente_message(
+            self.ticket.pk,
+            '@leticia e-mail vitoriacamargo.moneypromotora@gmail.com '
+            'número (51) 98219-0991.',
+            interno=True,
+        )
+        self.assertIn('leticia', r.get('mencionados') or [])
+        self.assertTrue(
+            TicketMention.objects.filter(ticket=self.ticket, user=leticia).exists()
+        )
+        self.assertTrue(self.ticket.co_authors.filter(pk=leticia.pk).exists())

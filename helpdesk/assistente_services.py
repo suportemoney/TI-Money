@@ -292,6 +292,7 @@ def send_assistente_message(
         pedacos = ['\n\n'.join(pedacos)]
 
     comment_ids: list[int] = []
+    comments = []
     for pedaco in pedacos:
         comment = Comment.objects.create(
             ticket=ticket,
@@ -301,9 +302,27 @@ def send_assistente_message(
             is_interno=interno,
         )
         comment_ids.append(comment.pk)
+        comments.append(comment)
 
     ticket.updated_at = timezone.now()
     ticket.save(update_fields=['updated_at'])
+
+    mencionados = []
+    try:
+        from helpdesk.mentions import processar_mencoes_assistente
+        for comment in comments:
+            mencionados.extend(processar_mencoes_assistente(ticket, comment))
+    except Exception:
+        logger.exception('Falha ao processar menções do Assistente no ticket %s', ticket_id)
+
+    vistos_mencao = set()
+    mencionados_unicos = []
+    for u in mencionados:
+        if u.pk not in vistos_mencao:
+            vistos_mencao.add(u.pk)
+            mencionados_unicos.append(u)
+    mencionados = mencionados_unicos
+
     # Pública: notifica solicitante; interna: só badge para TI (sem push ao solicitante)
     if not interno:
         # Cobrança @ (5min): o follow-up notifica com menções (evita log duplicado)
@@ -331,6 +350,20 @@ def send_assistente_message(
         except Exception:
             pass
 
+    if mencionados:
+        preview = (pedacos[0] if pedacos else texto)[:120]
+        try:
+            from helpdesk.views.kanban import adicionar_nao_lido
+            adicionar_nao_lido(ticket, None, usuarios_extra=mencionados)
+        except Exception:
+            pass
+        try:
+            from helpdesk.notifications import agendar_notificacao_mencoes
+            prefixo = '[Interno] ' if interno else ''
+            agendar_notificacao_mencoes(ticket, mencionados, f'{prefixo}{preview}')
+        except Exception:
+            pass
+
     return {
         'ok': True,
         'comment_id': comment_ids[0] if comment_ids else None,
@@ -340,6 +373,7 @@ def send_assistente_message(
         'bolhas': len(pedacos),
         'is_interno': interno,
         'followup_mencao': followup_mencao,
+        'mencionados': [u.username for u in mencionados],
     }
 
 
@@ -880,6 +914,24 @@ def ler_anexo_como_texto(ticket_id: int, attachment_ref: str) -> dict:
     )
 
 
+def _dados_chip_consulta(chip, employee_name=None, ultima_entrega=None, match=''):
+    """Serializa chip para o Assistente, incluindo e-mail vinculado se houver."""
+    email = getattr(chip, 'email_vinculado', None)
+    return {
+        'id': chip.pk,
+        'line_number': chip.line_number,
+        'formatted_line_number': chip.formatted_line_number,
+        'status': chip.status,
+        'usage_status': chip.usage_status,
+        'operator': chip.operator.name if chip.operator_id else None,
+        'employee_name': employee_name,
+        'ultima_entrega': ultima_entrega,
+        'email': email.address if email else None,
+        'email_employee_name': email.employee_name if email else None,
+        'match': match,
+    }
+
+
 def consultar_chips(q: str, limit: int = 20) -> dict:
     """Busca chips por linha, observação ou nome do consultor (última entrega)."""
     from chips.models import Chip, ChipMovement
@@ -898,28 +950,25 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
             action=ChipMovement.ActionChoices.DELIVERY,
             employee_name__icontains=termo,
         )
-        .select_related('chip', 'chip__operator')
+        .select_related(
+            'chip',
+            'chip__operator',
+            'chip__email_vinculado',
+            'chip__email_vinculado__domain',
+        )
         .order_by('-timestamp')[:80]
     )
     for mov in movs:
         chip = mov.chip
         if chip.pk in visto:
             continue
-        if chip.usage_status != Chip.UsageChoices.IN_USE:
-            # ainda lista, mas marca
-            pass
         visto.add(chip.pk)
-        resultados.append({
-            'id': chip.pk,
-            'line_number': chip.line_number,
-            'formatted_line_number': chip.formatted_line_number,
-            'status': chip.status,
-            'usage_status': chip.usage_status,
-            'operator': chip.operator.name if chip.operator_id else None,
-            'employee_name': mov.employee_name,
-            'ultima_entrega': mov.timestamp.isoformat() if mov.timestamp else None,
-            'match': 'entrega',
-        })
+        resultados.append(_dados_chip_consulta(
+            chip,
+            employee_name=mov.employee_name,
+            ultima_entrega=mov.timestamp.isoformat() if mov.timestamp else None,
+            match='entrega',
+        ))
         if len(resultados) >= limit:
             break
 
@@ -930,14 +979,13 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
                 | Q(observacao__icontains=termo)
                 | Q(iccid__icontains=termo)
             )
-            .select_related('operator')
+            .select_related('operator', 'email_vinculado', 'email_vinculado__domain')
             .order_by('-updated_at')[:limit]
         )
         for chip in qs:
             if chip.pk in visto:
                 continue
             visto.add(chip.pk)
-            # Última entrega se houver
             last = (
                 ChipMovement.objects.filter(
                     chip=chip, action=ChipMovement.ActionChoices.DELIVERY,
@@ -945,17 +993,14 @@ def consultar_chips(q: str, limit: int = 20) -> dict:
                 .order_by('-timestamp')
                 .first()
             )
-            resultados.append({
-                'id': chip.pk,
-                'line_number': chip.line_number,
-                'formatted_line_number': chip.formatted_line_number,
-                'status': chip.status,
-                'usage_status': chip.usage_status,
-                'operator': chip.operator.name if chip.operator_id else None,
-                'employee_name': last.employee_name if last else None,
-                'ultima_entrega': last.timestamp.isoformat() if last and last.timestamp else None,
-                'match': 'linha_ou_obs',
-            })
+            resultados.append(_dados_chip_consulta(
+                chip,
+                employee_name=last.employee_name if last else None,
+                ultima_entrega=(
+                    last.timestamp.isoformat() if last and last.timestamp else None
+                ),
+                match='linha_ou_obs',
+            ))
             if len(resultados) >= limit:
                 break
 
@@ -1097,26 +1142,37 @@ def consultar_equipamento(q: str, limit: int = 20) -> dict:
 def consultar_email(q: str, limit: int = 20) -> dict:
     """Busca e-mail corporativo por username, domínio ou colaborador."""
     from emails.models import EmailAccount
-    from mcp_api.serializers import serialize_email_account
+    from mcp_api.serializers import filtro_q_email, serialize_email_account
 
     termo = (q or '').strip()
     if not termo:
         raise AssistenteServiceError('Informe username, domínio ou nome do colaborador.')
 
     limit = max(1, min(int(limit or 20), 50))
-    filtro = (
-        Q(username__icontains=termo)
-        | Q(employee_name__icontains=termo)
-        | Q(domain__name__icontains=termo)
-    )
-    if termo.isdigit():
-        filtro |= Q(pk=int(termo))
-    qs = (
-        EmailAccount.objects.select_related('domain')
-        .filter(filtro)
-        .order_by('-updated_at')[:limit]
-    )
+    qs = filtro_q_email(
+        EmailAccount.objects.select_related('domain').prefetch_related('chips'),
+        termo,
+    ).order_by('-updated_at')[: max(limit * 3, 40)]
     itens = [serialize_email_account(a) for a in qs]
+    tokens = [t.lower() for t in re.split(r'[^\w]+', termo, flags=re.UNICODE) if len(t) >= 3]
+    termo_l = termo.lower()
+
+    def _score(item: dict) -> int:
+        nome = (item.get('employee_name') or '').lower()
+        user = (item.get('username') or '').lower()
+        addr = (item.get('address') or '').lower()
+        score = 0
+        if termo_l in nome or termo_l in user or termo_l in addr:
+            score += 20
+        for tok in tokens:
+            if tok in nome:
+                score += 5
+            if tok in user:
+                score += 4
+        return score
+
+    itens.sort(key=_score, reverse=True)
+    itens = itens[:limit]
     return {'ok': True, 'q': termo, 'count': len(itens), 'results': itens}
 
 

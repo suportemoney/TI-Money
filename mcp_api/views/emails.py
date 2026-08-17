@@ -1,11 +1,10 @@
-from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET
 
 from emails.models import EmailAccount, EmailDomain
 from mcp_api.auth import requer_token_mcp
-from mcp_api.serializers import parse_limit, serialize_domain, serialize_email_account
+from mcp_api.serializers import parse_limit, serialize_domain, serialize_email_account, filtro_q_email
 
 
 @require_GET
@@ -35,14 +34,7 @@ def list_accounts(request):
 
     q = (request.GET.get('q') or '').strip()
     if q:
-        filtro = (
-            Q(username__icontains=q)
-            | Q(employee_name__icontains=q)
-            | Q(domain__name__icontains=q)
-        )
-        if q.isdigit():
-            filtro |= Q(pk=int(q))
-        qs = qs.filter(filtro)
+        qs = filtro_q_email(qs, q)
 
     limit = parse_limit(request)
     itens = [serialize_email_account(a) for a in qs[:limit]]

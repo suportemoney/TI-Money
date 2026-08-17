@@ -266,7 +266,7 @@ TOOLS_SPEC = [
             'name': 'consultar_chips',
             'description': (
                 'Consulta chips WhatsApp por nome do consultor ou número da linha '
-                '(quantos em uso, status). NÃO cria nem registra chip novo — '
+                '(quantos em uso, status, e-mail vinculado). NÃO cria nem registra chip novo — '
                 'entrega/troca de chip é ação humana da TI (mensagem interna + escalar).'
             ),
             'parameters': {
@@ -334,7 +334,12 @@ TOOLS_SPEC = [
         'type': 'function',
         'function': {
             'name': 'consultar_email',
-            'description': 'Consulta e-mail corporativo por username, domínio ou nome do colaborador.',
+            'description': (
+                'Consulta e-mail do inventário por nome, username ou domínio. '
+                'Aceita nome completo com sobrenome extra. '
+                'results[].address é o e-mail; line_number vem se houver chip vinculado. '
+                'Não diga que não há e-mail se address vier preenchido.'
+            ),
             'parameters': {
                 'type': 'object',
                 'properties': {
@@ -350,8 +355,9 @@ TOOLS_SPEC = [
             'name': 'consultar_usuario',
             'description': (
                 'Busca usuário CRM por username ou nome. '
+                'results[].username é o @login para mencionar. '
                 'results[].eh_membro_ti=true → é da TI (não use como solicitante). '
-                'Use antes de atualizar_solicitante.'
+                'Antes de @mencionar alguém, busque aqui e use o username exato.'
             ),
             'parameters': {
                 'type': 'object',
@@ -1037,6 +1043,10 @@ def _system_prompt() -> str:
         '- NÃO use status PENDING.\n'
         '- Defina/atualize tag curta com definir_tag_chamado quando o tema estiver claro.\n'
         '- Se faltar info: pedir_ajuda_ti (menciona TI online) em vez de inventar.\n'
+        '- Pedido para mencionar alguém: consultar_usuario e use o username exato '
+        '(@login) em send_assistente_message (interno se o pedido veio interno).\n'
+        '- E-mail/chip: consultar_email e consultar_chips pelo nome; sobrenome extra '
+        'não significa "não cadastrado". Se a tool retornar address/email, informe.\n'
         '- Chips: a TI autoriza com @assistente interno e a autorização segue valendo '
         'nas mensagens internas seguintes. Resolva a operadora com '
         'listar_operadoras_chips; nunca peça o id da operadora à TI.\n'
@@ -1268,6 +1278,9 @@ def _executar_tool(ticket_id: int, name: str, args: dict) -> str:
         return json.dumps({'ok': False, 'error': str(exc)})
     except (TypeError, ValueError) as exc:
         return json.dumps({'ok': False, 'error': f'Argumentos inválidos: {exc}'})
+    except Exception as exc:
+        logger.exception('Tool %s falhou no ticket %s', name, ticket_id)
+        return json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False)
 
 
 def _parse_args(raw: Any) -> dict:

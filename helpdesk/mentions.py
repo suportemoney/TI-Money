@@ -72,7 +72,7 @@ def processar_mencoes(ticket, comment, autor) -> list:
 def processar_mencoes_assistente(ticket, comment) -> list:
     """
     Processa @mentions em comentário do Assistente (author=None).
-    Cria TicketMention para cada TI mencionado (sem exigir autor operador).
+    Concede acesso (co_authors) a qualquer usuário ativo mencionado.
     """
     usernames = extrair_usernames_mencionados(comment.text or '')
     if not usernames:
@@ -83,7 +83,7 @@ def processar_mencoes_assistente(ticket, comment) -> list:
         if username.lower() in ASSISTENTE_ALIASES:
             continue
         user = CustomUser.objects.filter(username__iexact=username, is_active=True).first()
-        if not user or not usuario_eh_operador_helpdesk(user):
+        if not user:
             continue
         ticket.co_authors.add(user)
         TicketMention.objects.get_or_create(

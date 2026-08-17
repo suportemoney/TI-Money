@@ -1,5 +1,7 @@
 """Helpers de paginação e serialização segura (sem senhas/tokens)."""
 
+import re
+
 from django.db.models import Q
 
 
@@ -154,6 +156,7 @@ def serialize_domain(domain):
 
 
 def serialize_email_account(account):
+    chip = account.chip
     return {
         'id': account.pk,
         'username': account.username,
@@ -162,7 +165,9 @@ def serialize_email_account(account):
         'employee_name': account.employee_name,
         'status': account.status,
         'status_display': account.get_status_display(),
-        'last_password_reset': iso(account.last_password_reset),
+        'chip_id': chip.pk if chip else None,
+        'line_number': chip.line_number if chip else None,
+        'formatted_line_number': chip.formatted_line_number if chip else None,
         'created_at': iso(account.created_at),
         'updated_at': iso(account.updated_at),
     }
@@ -211,6 +216,14 @@ def serialize_acao(reg):
     }
 
 
+def _tokens_busca(q: str) -> list[str]:
+    """Tokens úteis (len>=3) para busca por nome composto."""
+    return [
+        t for t in re.split(r'[^\w]+', (q or '').strip(), flags=re.UNICODE)
+        if len(t) >= 3
+    ]
+
+
 def filtro_q_usuario(qs, q):
     if not q:
         return qs
@@ -222,6 +235,49 @@ def filtro_q_usuario(qs, q):
     )
     if q.isdigit():
         filtro |= Q(pk=int(q))
+    tokens = _tokens_busca(q)
+    if tokens:
+        filtro |= Q(first_name__icontains=tokens[0]) | Q(last_name__icontains=tokens[0])
+        if len(tokens) >= 2:
+            filtro |= (
+                Q(first_name__icontains=tokens[0]) & Q(last_name__icontains=tokens[1])
+            )
+    return qs.filter(filtro)
+
+
+def filtro_q_email(qs, q):
+    """
+    Busca e-mail por endereço, username, domínio ou nome.
+    Aceita sobrenome extra (ex.: 'Vitoria Silva Camargo' acha 'Vitoria Silva'
+    e username vitoriacamargo...).
+    """
+    termo = (q or '').strip()
+    if not termo:
+        return qs
+    filtro = (
+        Q(username__icontains=termo)
+        | Q(employee_name__icontains=termo)
+        | Q(domain__name__icontains=termo)
+    )
+    if '@' in termo:
+        user_part, _, domain_part = termo.partition('@')
+        if user_part:
+            filtro |= Q(username__icontains=user_part)
+        if domain_part:
+            filtro |= Q(domain__name__icontains=domain_part)
+    if termo.isdigit():
+        filtro |= Q(pk=int(termo))
+    tokens = _tokens_busca(termo)
+    if tokens:
+        for tok in tokens:
+            filtro |= Q(username__icontains=tok) | Q(employee_name__icontains=tok)
+        if len(tokens) >= 2:
+            q_nome = Q()
+            for tok in tokens[:2]:
+                q_nome &= Q(employee_name__icontains=tok)
+            filtro |= q_nome
+            filtro |= Q(username__icontains=''.join(tokens[:2]))
+            filtro |= Q(username__icontains=tokens[0] + tokens[-1])
     return qs.filter(filtro)
 
 
