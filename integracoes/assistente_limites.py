@@ -12,7 +12,7 @@ LIMITACOES_TOOLS_TEXTO = (
     '- Pode: consultar e atualizar status/observação de chips; consultar patrimônio, '
     'e-mail e usuário; consultar inventário local do Discador; MoneyConsig B2B; '
     'definir tag curta; pedir ajuda a TI online; enviar mensagem pública breve ou '
-    'interna detalhada; triar/recusar/escalar; ler anexos; alterar prioridade/'
+    'interna detalhada; triar/recusar/limpar recusa/escalar; ler anexos; alterar prioridade/'
     'status (sem PENDING)/solicitante/descrição.\n'
     '- Criar/transferir chip exige autorização de TI: começa com @assistente em '
     'mensagem INTERNA de membro TI e continua valendo nas mensagens internas '

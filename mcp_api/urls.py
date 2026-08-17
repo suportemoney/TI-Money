@@ -24,6 +24,7 @@ urlpatterns = [
     path('tickets/<int:pk>/assistente/escalar/', helpdesk.post_assistente_escalar, name='mcp_assistente_escalar'),
     path('tickets/<int:pk>/assistente/triar/', helpdesk.post_triar_chamado, name='mcp_assistente_triar'),
     path('tickets/<int:pk>/assistente/recusar/', helpdesk.post_recusar_chamado, name='mcp_assistente_recusar'),
+    path('tickets/<int:pk>/assistente/limpar-recusa/', helpdesk.post_limpar_recusa_chamado, name='mcp_assistente_limpar_recusa'),
     path('tickets/<int:pk>/anexos/', helpdesk.get_ticket_anexos, name='mcp_ticket_anexos'),
     path('tickets/<int:pk>/anexos/ler-imagem/', helpdesk.post_ler_imagem_anexo, name='mcp_ler_imagem_anexo'),
     path('tickets/<int:pk>/anexos/ler-pdf/', helpdesk.post_ler_pdf_anexo, name='mcp_ler_pdf_anexo'),

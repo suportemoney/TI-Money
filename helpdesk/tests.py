@@ -1247,3 +1247,31 @@ class AssistenteContextualTestCase(TestCase):
             TicketMention.objects.filter(ticket=self.ticket, user=leticia).exists()
         )
         self.assertTrue(self.ticket.co_authors.filter(pk=leticia.pk).exists())
+
+    def test_limpar_recusa_reabre_chamado(self):
+        from helpdesk.assistente_services import limpar_recusa_chamado, recusar_chamado
+
+        recusar_chamado(self.ticket.pk, 'Sem resposta')
+        self.ticket.refresh_from_db()
+        self.assertTrue(self.ticket.is_rejected)
+        self.assertEqual(self.ticket.status, Ticket.StatusChoices.RESOLVED)
+
+        r = limpar_recusa_chamado(self.ticket.pk)
+        self.assertTrue(r['ok'])
+        self.ticket.refresh_from_db()
+        self.assertFalse(self.ticket.is_rejected)
+        self.assertEqual((self.ticket.rejection_reason or ''), '')
+        self.assertEqual(self.ticket.status, Ticket.StatusChoices.IN_PROGRESS)
+
+    def test_set_status_em_atendimento_limpa_recusa(self):
+        from helpdesk.assistente_services import set_ticket_status
+
+        self.ticket.status = Ticket.StatusChoices.RESOLVED
+        self.ticket.is_rejected = True
+        self.ticket.rejection_reason = 'Sem resposta'
+        self.ticket.save()
+        set_ticket_status(self.ticket.pk, 'IN_PROGRESS', via_assistente=True)
+        self.ticket.refresh_from_db()
+        self.assertFalse(self.ticket.is_rejected)
+        self.assertEqual((self.ticket.rejection_reason or ''), '')
+        self.assertEqual(self.ticket.status, Ticket.StatusChoices.IN_PROGRESS)

@@ -525,6 +525,15 @@ def ticket_update_status(request, pk):
             ticket.assigned_to = None
             ticket.assistente_escalado = False
 
+        # Sair de Resolvido/Recusado: limpa badge e motivo de recusa
+        if new_status != Ticket.StatusChoices.RESOLVED:
+            ticket.is_rejected = False
+            ticket.rejection_reason = ''
+            if status_anterior == Ticket.StatusChoices.RESOLVED:
+                ticket.resolved_at = None
+                ticket.resolved_by = None
+                ticket.assistente_escalado = False
+
         ticket.save()
         if status_anterior != new_status:
             log_status_alterado(

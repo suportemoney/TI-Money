@@ -17,6 +17,7 @@ from helpdesk.assistente_services import (
     listar_anexos_ticket,
     listar_categorias_especificas,
     recusar_chamado,
+    limpar_recusa_chamado,
     send_assistente_message,
     set_ticket_priority,
     set_ticket_status,
@@ -177,6 +178,13 @@ def post_triar_chamado(request, pk):
 def post_recusar_chamado(request, pk):
     data = _json_body(request)
     return _service_response(recusar_chamado, pk, data.get('motivo', ''))
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+@requer_token_mcp
+def post_limpar_recusa_chamado(request, pk):
+    return _service_response(limpar_recusa_chamado, pk)
 
 
 @require_GET

@@ -419,7 +419,19 @@ def set_ticket_status(ticket_id: int, status: str, *, via_assistente: bool = Fal
     if status == Ticket.StatusChoices.RESOLVED and not ticket.resolved_at:
         ticket.resolved_at = timezone.now()
         update_fields.append('resolved_at')
-    ticket.save(update_fields=update_fields)
+    if status != Ticket.StatusChoices.RESOLVED:
+        if ticket.is_rejected:
+            ticket.is_rejected = False
+            update_fields.append('is_rejected')
+        if ticket.rejection_reason:
+            ticket.rejection_reason = ''
+            update_fields.append('rejection_reason')
+        if antes == Ticket.StatusChoices.RESOLVED:
+            ticket.resolved_at = None
+            ticket.resolved_by = None
+            ticket.assistente_escalado = False
+            update_fields.extend(['resolved_at', 'resolved_by', 'assistente_escalado'])
+    ticket.save(update_fields=list(dict.fromkeys(update_fields)))
     return {
         'ok': True,
         'ticket_id': ticket.pk,
@@ -632,6 +644,78 @@ def recusar_chamado(ticket_id: int, motivo: str) -> dict:
         'status': ticket.status,
         'comment_id': comment.pk,
         'motivo': motivo_limpo,
+    }
+
+
+def limpar_recusa_chamado(ticket_id: int) -> dict:
+    """Remove recusa (badge/motivo) e reabre se ainda estiver Resolvido."""
+    ticket = Ticket.objects.filter(pk=ticket_id).first()
+    if not ticket:
+        raise AssistenteServiceError('Chamado não encontrado.', 404)
+
+    estava_recusado = bool(ticket.is_rejected or (ticket.rejection_reason or '').strip())
+    status_antes = ticket.status
+    motivo_antes = ticket.rejection_reason or ''
+
+    ticket.is_rejected = False
+    ticket.rejection_reason = ''
+    ticket.assistente_escalado = False
+    ticket.assistente_aguardando_desde = None
+    ticket.assistente_followup_mencao_em = None
+    campos = [
+        'is_rejected',
+        'rejection_reason',
+        'assistente_escalado',
+        'assistente_aguardando_desde',
+        'assistente_followup_mencao_em',
+        'updated_at',
+    ]
+    if ticket.status == Ticket.StatusChoices.RESOLVED:
+        ticket.status = Ticket.StatusChoices.IN_PROGRESS
+        campos.append('status')
+        ticket.resolved_at = None
+        ticket.resolved_by = None
+        campos.extend(['resolved_at', 'resolved_by'])
+    ticket.save(update_fields=list(dict.fromkeys(campos)))
+
+    send_assistente_message(
+        ticket_id,
+        'Recusa removida. Chamado segue em atendimento.',
+        interno=True,
+        permitir_repeticao=True,
+    )
+    if estava_recusado:
+        try:
+            send_assistente_message(
+                ticket_id,
+                'Este chamado continua em atendimento. Desconsidere o encerramento anterior.',
+                interno=False,
+                permitir_repeticao=True,
+            )
+        except AssistenteServiceError:
+            pass
+    try:
+        from helpdesk.audit import log_edicao
+        log_edicao(
+            ticket,
+            None,
+            {
+                'is_rejected': {'antes': estava_recusado, 'depois': False},
+                'rejection_reason': {'antes': motivo_antes[:200], 'depois': ''},
+                'status': {'antes': status_antes, 'depois': ticket.status},
+            },
+            'Recusa removida pelo Assistente.',
+        )
+    except Exception:
+        pass
+
+    return {
+        'ok': True,
+        'ticket_id': ticket.pk,
+        'is_rejected': False,
+        'status': ticket.status,
+        'status_antes': status_antes,
+        'estava_recusado': estava_recusado,
     }
 
 

@@ -130,6 +130,18 @@ def recusar_chamado(ticket_id: int, motivo: str) -> str:
 
 
 @mcp.tool()
+def limpar_recusa_chamado(ticket_id: int) -> str:
+    """Remove recusa (badge/motivo) e reabre se ainda estiver Resolvido."""
+    try:
+        return get_client().post_text(
+            f'tickets/{ticket_id}/assistente/limpar-recusa/',
+            {},
+        )
+    except CrmTiApiError as exc:
+        return f'Erro: {exc}'
+
+
+@mcp.tool()
 def listar_anexos(ticket_id: int) -> str:
     """Lista anexos do ticket e comentários (refs ticket:ID / comment:ID)."""
     try:

@@ -32,6 +32,7 @@ from helpdesk.assistente_services import (
     extrair_texto_pdf_anexo,
     limpar_texto_para_solicitante,
     ler_anexo_como_texto,
+    limpar_recusa_chamado,
     listar_anexos_ticket,
     listar_campanhas_discador,
     listar_categorias_especificas,
@@ -178,7 +179,8 @@ TOOLS_SPEC = [
             'name': 'recusar_chamado',
             'description': (
                 'Recusa o chamado quando título/descrição não correspondem ao problema real. '
-                'Exige motivo. Orienta abrir novo chamado correto.'
+                'Exige motivo. NÃO use se a TI já reabriu ou está em atendimento. '
+                'Para desfazer recusa use limpar_recusa_chamado.'
             ),
             'parameters': {
                 'type': 'object',
@@ -187,6 +189,18 @@ TOOLS_SPEC = [
                 },
                 'required': ['motivo'],
             },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'limpar_recusa_chamado',
+            'description': (
+                'Remove o badge Recusado e o motivo da recusa. '
+                'Se o chamado ainda estiver Resolvido, reabre para Em Atendimento. '
+                'Use quando a TI pedir para tirar a recusa ou disser que recusou errado.'
+            ),
+            'parameters': {'type': 'object', 'properties': {}, 'required': []},
         },
     },
     {
@@ -1012,6 +1026,8 @@ def _montar_contexto(
         f'Solicitante: {sol_txt}\n'
         f'Aberto por (created_by): {criador_txt}\n'
         f'Atribuído a: {(ticket.assigned_to.username if ticket.assigned_to_id else "(ninguém)")}\n'
+        f'Recusado: {"sim" if ticket.is_rejected else "não"}\n'
+        f'Motivo da recusa: {(ticket.rejection_reason or "(nenhum)").strip()}\n'
         f'Gatilho desta rodada: {gatilho}\n\n'
         f'Anexos:\n{_resumo_anexos(ticket)}\n\n'
         f'Histórico recente (até 15 Assistente / 5 TI / 5 usuário):\n'
@@ -1039,6 +1055,10 @@ def _system_prompt() -> str:
         '- Nunca repita nem reformule mensagem já enviada no histórico recente.\n'
         '- Nunca peça para reenviar/repetir algo que já está no histórico: use o dado.\n'
         '- Se um pedido já foi feito, continue de onde parou em vez de recomeçar.\n'
+        '- Dado interno da TI (chip, e-mail, número): consulte e aja na mesma rodada; '
+        'não espere o solicitante repetir.\n'
+        '- Recusado=sim: se a TI pedir para tirar a recusa, chame limpar_recusa_chamado. '
+        'Nunca diga que não está recusado se Recusado=sim.\n'
         '- Pergunte no máximo uma vez por dado faltante, e só o que ainda falta.\n'
         '- NÃO use status PENDING.\n'
         '- Defina/atualize tag curta com definir_tag_chamado quando o tema estiver claro.\n'
@@ -1090,6 +1110,8 @@ def _executar_tool(ticket_id: int, name: str, args: dict) -> str:
             )
         if name == 'recusar_chamado':
             return json.dumps(recusar_chamado(ticket_id, args.get('motivo', '')), ensure_ascii=False)
+        if name == 'limpar_recusa_chamado':
+            return json.dumps(limpar_recusa_chamado(ticket_id), ensure_ascii=False)
         if name == 'listar_anexos':
             return json.dumps(listar_anexos_ticket(ticket_id), ensure_ascii=False)
         if name == 'ler_imagem_anexo':
@@ -1311,6 +1333,7 @@ _MOTIVOS_MENCAO_LIBERA = frozenset({
     'assistente_escalado',
     'assumido_pela_ti',
     'solicitante_eh_operador_ti',
+    'ticket_resolvido',
 })
 
 
@@ -1362,7 +1385,7 @@ def _rodada_tools(
         and not mencao_ou_orientacao
     ):
         return enviou_mensagem
-    if ticket.is_rejected and enviou_mensagem:
+    if ticket.is_rejected and enviou_mensagem and not mencao_ou_orientacao:
         return enviou_mensagem
 
     msg = chat_completion(messages, tools=TOOLS_SPEC, temperature=0.35)
@@ -1395,6 +1418,8 @@ def _rodada_tools(
             if name == 'send_assistente_message' and parsed.get('ok'):
                 enviou_mensagem = True
             if name == 'recusar_chamado' and parsed.get('ok'):
+                enviou_mensagem = True
+            if name == 'limpar_recusa_chamado' and parsed.get('ok'):
                 enviou_mensagem = True
             if name == 'escalar_para_ti' and parsed.get('ok'):
                 enviou_mensagem = True
@@ -1667,7 +1692,11 @@ def _processar_assistente_inner(
                     and gatilho != GATILHO_MENCAO
                 ):
                     break
-                if ticket.is_rejected and enviou_mensagem:
+                if (
+                    ticket.is_rejected
+                    and enviou_mensagem
+                    and gatilho not in (GATILHO_MENCAO, GATILHO_ORIENTACAO)
+                ):
                     break
 
                 qtd_msgs = len(messages)

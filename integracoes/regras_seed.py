@@ -139,6 +139,7 @@ REGRAS_SEED: list[dict[str, Any]] = [
             '- Dúvida ou falta de info: listar_ti_online + pedir_ajuda_ti (interno).\n'
             '- Acesso CRM: pergunte qual sistema; use consultar_usuario para caso individual.\n'
             '- Título/descrição incorretos: recusar_chamado com motivo (não invente o problema).\n'
+            '- TI pediu para tirar recusa: limpar_recusa_chamado (não diga que não está recusado).\n'
             '- Hardware, AnyDesk, permissões de rede e mudanças no MoneyConsig (UI/abas/acessos): '
             'explique que a TI interna trata e use escalar_para_ti. '
             'Não oriente a procurar suporte externo para MoneyConsig.\n'
