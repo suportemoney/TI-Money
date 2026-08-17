@@ -27,7 +27,13 @@ def helpdesk_permissoes(request):
             usuario_pode_operar_kanban,
         )
 
-        # Letreiro desligado no CP até estabilizar o 500 (evita query global)
+        letreiro = []
+        try:
+            from helpdesk.informative_services import mensagens_letreiro_vigentes
+            letreiro = mensagens_letreiro_vigentes()
+        except Exception:
+            letreiro = []
+
         return {
             'helpdesk_asset_v': asset_v,
             'pode_operar_kanban': usuario_pode_operar_kanban(user),
@@ -35,7 +41,7 @@ def helpdesk_permissoes(request):
             'eh_operador_helpdesk': usuario_eh_operador_helpdesk(user),
             'pode_gerenciar_comentarios': usuario_pode_gerenciar_comentarios(user),
             'pode_gerenciar_informativos': usuario_pode_gerenciar_informativos(user),
-            'letreiro_mensagens': [],
+            'letreiro_mensagens': letreiro,
         }
     except Exception:
         return seguro

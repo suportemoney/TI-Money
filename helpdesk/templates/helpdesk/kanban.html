@@ -45,6 +45,7 @@
             <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Helpdesk</h2>
             <p class="text-sm text-slate-500 mt-1">Gerencie os chamados e suporte interno.</p>
         </div>
+        {% include "helpdesk/_letreiro.html" %}
         <div class="flex items-center gap-2 shrink-0">
             {% if eh_operador_helpdesk %}
             <button type="button"
@@ -107,6 +108,7 @@
     <!-- Container Kanban -->
     <div class="flex-1 overflow-x-auto overflow-y-hidden pb-4">
         {% include "helpdesk/_poll.html" %}
+        {% include "helpdesk/_informativo_expire_modal.html" %}
         <div id="kanban-board-container"
              hx-trigger="ticketUpdated from:body, ticketRead from:body"
              hx-get="{% url 'helpdesk:kanban_board' %}?v={{ helpdesk_asset_v }}"

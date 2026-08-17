@@ -10,6 +10,7 @@
             <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Helpdesk</h2>
             <p class="text-sm text-slate-500 mt-1">Métricas e acompanhamento geral de chamados.</p>
         </div>
+        {% include "helpdesk/_letreiro.html" %}
         <div class="flex items-center gap-2 shrink-0">
             {% if eh_operador_helpdesk %}
             <button type="button"
@@ -48,6 +49,7 @@
     {% include "helpdesk/_nav.html" %}
 
     {% include "helpdesk/_poll.html" %}
+    {% include "helpdesk/_informativo_expire_modal.html" %}
     <div id="dashboard-metrics-container"
          hx-trigger="ticketUpdated from:body"
          hx-get="{% url 'helpdesk:dashboard_metrics' %}?v={{ helpdesk_asset_v }}"

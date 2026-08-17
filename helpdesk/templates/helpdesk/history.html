@@ -10,6 +10,7 @@
             <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Helpdesk</h2>
             <p class="text-sm text-slate-500 mt-1">Busque e filtre o histórico completo de chamados.</p>
         </div>
+        {% include "helpdesk/_letreiro.html" %}
         <div class="flex items-center gap-2 shrink-0">
             {% if eh_operador_helpdesk %}
             <button type="button"
@@ -47,6 +48,7 @@
     {% include "helpdesk/_nav.html" %}
 
     {% include "helpdesk/_poll.html" %}
+    {% include "helpdesk/_informativo_expire_modal.html" %}
 
     <!-- Filtros -->
     <form method="get" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap gap-5 items-end">
