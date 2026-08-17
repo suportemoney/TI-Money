@@ -377,6 +377,316 @@ def send_assistente_message(
     }
 
 
+_MAX_OPCOES_QUESTIONARIO = 6
+_MIN_OPCOES_QUESTIONARIO = 2
+_MAX_CHARS_ESCLARECIMENTO = 1200
+_IDS_OPCAO = ('a', 'b', 'c', 'd', 'e', 'f')
+
+
+def _normalizar_opcoes_questionario(opcoes) -> list[dict]:
+    """Valida e normaliza lista de opções (2–6) com id estável."""
+    if not isinstance(opcoes, (list, tuple)):
+        raise AssistenteServiceError('Informe uma lista de opções.')
+    limpas: list[str] = []
+    for item in opcoes:
+        if isinstance(item, dict):
+            label = str(item.get('label') or item.get('texto') or '').strip()
+        else:
+            label = str(item or '').strip()
+        if label:
+            limpas.append(label[:200])
+    if len(limpas) < _MIN_OPCOES_QUESTIONARIO:
+        raise AssistenteServiceError(
+            f'Informe pelo menos {_MIN_OPCOES_QUESTIONARIO} opções.'
+        )
+    if len(limpas) > _MAX_OPCOES_QUESTIONARIO:
+        limpas = limpas[:_MAX_OPCOES_QUESTIONARIO]
+    return [
+        {'id': _IDS_OPCAO[i], 'label': label}
+        for i, label in enumerate(limpas)
+    ]
+
+
+def _fechar_questionarios_abertos(ticket: Ticket) -> None:
+    """Marca questionários públicos abertos como expirados (só um ativo)."""
+    abertos = Comment.objects.filter(
+        ticket=ticket,
+        is_active=True,
+        is_assistente=True,
+        is_interno=False,
+        structured_payload__type='questionario',
+        structured_payload__status='aberto',
+    )
+    for c in abertos:
+        payload = dict(c.structured_payload or {})
+        payload['status'] = 'expirado'
+        c.structured_payload = payload
+        c.save(update_fields=['structured_payload'])
+
+
+def enviar_pergunta_opcoes(
+    ticket_id: int,
+    pergunta: str,
+    opcoes,
+    *,
+    contexto_curto: str = '',
+) -> dict:
+    """
+    Envia pergunta pública com opções clicáveis (questionário).
+    O solicitante/criador escolhe na UI; a escolha vira comentário canônico.
+    """
+    pergunta = limpar_texto_para_solicitante(pergunta)
+    if not pergunta:
+        raise AssistenteServiceError('Informe a pergunta do questionário.')
+    if len(pergunta) > 500:
+        pergunta = pergunta[:500].rstrip()
+
+    opcoes_norm = _normalizar_opcoes_questionario(opcoes)
+    contexto = limpar_texto_para_solicitante(contexto_curto or '')
+    if len(contexto) > 280:
+        contexto = contexto[:280].rstrip()
+
+    ticket = Ticket.objects.filter(pk=ticket_id).first()
+    if not ticket:
+        raise AssistenteServiceError('Chamado não encontrado.', 404)
+
+    _fechar_questionarios_abertos(ticket)
+
+    linhas_opcoes = [
+        f"{o['id'].upper()}) {o['label']}" for o in opcoes_norm
+    ]
+    texto = pergunta
+    if contexto:
+        texto = f'{contexto}\n\n{pergunta}'
+    texto = f"{texto}\n\n" + '\n'.join(linhas_opcoes)
+
+    payload = {
+        'type': 'questionario',
+        'pergunta': pergunta,
+        'contexto_curto': contexto,
+        'opcoes': opcoes_norm,
+        'status': 'aberto',
+        'escolhida_id': None,
+        'respondido_em': None,
+        'respondido_por_id': None,
+    }
+
+    comment = Comment.objects.create(
+        ticket=ticket,
+        author=None,
+        text=texto,
+        is_assistente=True,
+        is_interno=False,
+        structured_payload=payload,
+    )
+    ticket.updated_at = timezone.now()
+    ticket.save(update_fields=['updated_at'])
+
+    try:
+        _notificar_comentario_assistente(ticket, pergunta)
+        from helpdesk.assistente_followup import marcar_espera_assistente
+        marcar_espera_assistente(ticket)
+    except Exception:
+        logger.exception(
+            'Falha ao notificar questionário do Assistente no ticket %s',
+            ticket_id,
+        )
+
+    return {
+        'ok': True,
+        'comment_id': comment.pk,
+        'ticket_id': ticket.pk,
+        'type': 'questionario',
+        'status': 'aberto',
+        'opcoes': opcoes_norm,
+        'text': texto,
+    }
+
+
+def enviar_esclarecimento(
+    ticket_id: int,
+    texto: str,
+    *,
+    lacunas: list | None = None,
+) -> dict:
+    """
+    Envia bloco público de esclarecimento (limite maior que mensagem breve).
+    Use quando faltar informação ou o relato estiver vago.
+    """
+    texto_limpo = limpar_texto_para_solicitante(texto)
+    if not texto_limpo:
+        raise AssistenteServiceError('Informe o texto de esclarecimento.')
+    if len(texto_limpo) > _MAX_CHARS_ESCLARECIMENTO:
+        texto_limpo = texto_limpo[:_MAX_CHARS_ESCLARECIMENTO].rstrip()
+
+    lacunas_norm: list[str] = []
+    if lacunas:
+        for item in lacunas:
+            s = str(item or '').strip()
+            if s:
+                lacunas_norm.append(s[:200])
+        lacunas_norm = lacunas_norm[:8]
+
+    ticket = Ticket.objects.filter(pk=ticket_id).first()
+    if not ticket:
+        raise AssistenteServiceError('Chamado não encontrado.', 404)
+
+    # Fecha esclarecimentos anteriores abertos
+    abertos = Comment.objects.filter(
+        ticket=ticket,
+        is_active=True,
+        is_assistente=True,
+        is_interno=False,
+        structured_payload__type='esclarecimento',
+        structured_payload__status='aberto',
+    )
+    for c in abertos:
+        payload_ant = dict(c.structured_payload or {})
+        payload_ant['status'] = 'expirado'
+        c.structured_payload = payload_ant
+        c.save(update_fields=['structured_payload'])
+
+    corpo = texto_limpo
+    if lacunas_norm:
+        bullets = '\n'.join(f'- {l}' for l in lacunas_norm)
+        corpo = f'{texto_limpo}\n\n**O que preciso saber:**\n{bullets}'
+
+    payload = {
+        'type': 'esclarecimento',
+        'texto': texto_limpo,
+        'lacunas': lacunas_norm,
+        'status': 'aberto',
+    }
+
+    comment = Comment.objects.create(
+        ticket=ticket,
+        author=None,
+        text=corpo,
+        is_assistente=True,
+        is_interno=False,
+        structured_payload=payload,
+    )
+    ticket.updated_at = timezone.now()
+    ticket.save(update_fields=['updated_at'])
+
+    try:
+        _notificar_comentario_assistente(ticket, texto_limpo[:120])
+        from helpdesk.assistente_followup import marcar_espera_assistente
+        marcar_espera_assistente(ticket)
+    except Exception:
+        logger.exception(
+            'Falha ao notificar esclarecimento do Assistente no ticket %s',
+            ticket_id,
+        )
+
+    return {
+        'ok': True,
+        'comment_id': comment.pk,
+        'ticket_id': ticket.pk,
+        'type': 'esclarecimento',
+        'status': 'aberto',
+        'text': corpo,
+        'chars': len(corpo),
+    }
+
+
+def responder_opcao_questionario(
+    ticket: Ticket,
+    comment: Comment,
+    opcao_id: str,
+    user,
+) -> dict:
+    """
+    Registra a escolha do usuário em um questionário aberto e cria comentário canônico.
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        raise AssistenteServiceError('Usuário não autenticado.', 403)
+    if comment.ticket_id != ticket.pk:
+        raise AssistenteServiceError('Comentário não pertence a este chamado.', 404)
+    if not comment.is_assistente or comment.is_interno:
+        raise AssistenteServiceError('Este comentário não é um questionário público.')
+
+    payload = dict(comment.structured_payload or {})
+    if payload.get('type') != 'questionario':
+        raise AssistenteServiceError('Este comentário não é um questionário.')
+    if payload.get('status') != 'aberto':
+        raise AssistenteServiceError('Este questionário já foi respondido ou expirou.')
+
+    opcao_id = (opcao_id or '').strip().lower()
+    opcoes = payload.get('opcoes') or []
+    escolhida = next((o for o in opcoes if str(o.get('id', '')).lower() == opcao_id), None)
+    if not escolhida:
+        raise AssistenteServiceError('Opção inválida para este questionário.')
+
+    agora = timezone.now()
+    payload['status'] = 'respondido'
+    payload['escolhida_id'] = escolhida['id']
+    payload['respondido_em'] = agora.isoformat()
+    payload['respondido_por_id'] = user.pk
+    comment.structured_payload = payload
+    comment.save(update_fields=['structured_payload'])
+
+    label = escolhida.get('label') or ''
+    oid = str(escolhida['id']).upper()
+    texto_user = f'Opção selecionada: {oid} — {label}'
+
+    resposta = Comment.objects.create(
+        ticket=ticket,
+        author=user,
+        text=texto_user,
+        is_assistente=False,
+        is_interno=False,
+        structured_payload={
+            'type': 'resposta_questionario',
+            'questionario_comment_id': comment.pk,
+            'escolhida_id': escolhida['id'],
+            'label': label,
+        },
+    )
+    ticket.updated_at = agora
+    ticket.save(update_fields=['updated_at'])
+
+    try:
+        from helpdesk.assistente_followup import (
+            limpar_espera_assistente,
+            usuario_e_solicitante_ou_criador,
+        )
+        if usuario_e_solicitante_ou_criador(ticket, user):
+            limpar_espera_assistente(ticket)
+    except Exception:
+        pass
+
+    return {
+        'ok': True,
+        'questionario_comment_id': comment.pk,
+        'resposta_comment_id': resposta.pk,
+        'escolhida_id': escolhida['id'],
+        'label': label,
+        'text': texto_user,
+    }
+
+
+def ultimo_esclarecimento_ou_questionario_aberto(ticket: Ticket) -> Comment | None:
+    """Último bloco aberto (questionário ou esclarecimento) para o painel do drawer."""
+    candidatos = (
+        Comment.objects.filter(
+            ticket=ticket,
+            is_active=True,
+            is_assistente=True,
+            is_interno=False,
+        )
+        .exclude(structured_payload=None)
+        .order_by('-created_at')[:30]
+    )
+    for c in candidatos:
+        payload = c.structured_payload or {}
+        tipo = payload.get('type')
+        status = payload.get('status', 'aberto')
+        if tipo in ('questionario', 'esclarecimento') and status == 'aberto':
+            return c
+    return None
+
+
 def set_ticket_priority(ticket_id: int, priority: str) -> dict:
     priority = (priority or '').strip().upper()
     if priority not in PRIORIDADES:

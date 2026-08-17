@@ -401,10 +401,42 @@ class Comment(models.Model):
             'Solicitante/criador comum não vê.'
         ),
     )
+    structured_payload = models.JSONField(
+        null=True,
+        blank=True,
+        help_text=(
+            'Payload estruturado do Assistente (questionário com opções ou '
+            'bloco de esclarecimento). Comentários antigos ficam nulos.'
+        ),
+    )
 
     def __str__(self) -> str:
         autor = self.author.username if self.author_id else ('Assistente' if self.is_assistente else 'Sistema')
         return f"Comment by {autor} on Ticket {self.ticket_id}"
+
+    @property
+    def payload_tipo(self) -> str:
+        """Tipo do payload estruturado, se houver."""
+        payload = self.structured_payload or {}
+        return str(payload.get('type') or '')
+
+    @property
+    def questionario_aberto(self) -> bool:
+        """True se este comentário é um questionário ainda sem resposta."""
+        payload = self.structured_payload or {}
+        return (
+            payload.get('type') == 'questionario'
+            and payload.get('status') == 'aberto'
+        )
+
+    @property
+    def esclarecimento_aberto(self) -> bool:
+        """True se este comentário é um esclarecimento ainda aberto."""
+        payload = self.structured_payload or {}
+        return (
+            payload.get('type') == 'esclarecimento'
+            and payload.get('status', 'aberto') == 'aberto'
+        )
 
     @property
     def is_image(self):

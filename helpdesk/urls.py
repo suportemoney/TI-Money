@@ -48,6 +48,11 @@ urlpatterns = [
     path('ticket/<int:pk>/comment/', views.ticket_add_comment, name='ticket_add_comment'),
     path('ticket/<int:pk>/comments/', views.ticket_comments, name='ticket_comments'),
     path(
+        'ticket/<int:ticket_pk>/comment/<int:comment_pk>/opcao/',
+        views.ticket_responder_opcao,
+        name='ticket_responder_opcao',
+    ),
+    path(
         'ticket/<int:ticket_pk>/comment/<int:comment_pk>/edit/',
         views.comment_edit,
         name='comment_edit',

@@ -232,15 +232,19 @@ def _contexto_comentarios(request, ticket):
         ticket.comments.filter(is_active=True).order_by('-created_at'),
         request.user,
     )
+    from helpdesk.assistente_services import ultimo_esclarecimento_ou_questionario_aberto
+    painel_ia = ultimo_esclarecimento_ou_questionario_aberto(ticket)
     return {
         'ticket': ticket,
         'comments': comments,
+        'pode_comentar': usuario_pode_comentar_chamado(request.user, ticket),
         'pode_gerenciar_comentarios': usuario_pode_gerenciar_comentarios(request.user),
         'pode_ver_internos': usuario_pode_ver_comentarios_internos(request.user),
         'pode_refresh_ia': (
             usuario_pode_refresh_assistente(request.user)
             and ticket_pode_mostrar_refresh_ia(ticket)
         ),
+        'painel_esclarecimento_ia': painel_ia,
     }
 
 
@@ -261,6 +265,7 @@ def _contexto_drawer(request, ticket, edit_form=None):
             ti_online = listar_ti_online_resumo()
         except Exception:
             ti_online = []
+    from helpdesk.assistente_services import ultimo_esclarecimento_ou_questionario_aberto
     return {
         'ticket': ticket,
         'comments': comments,
@@ -278,6 +283,7 @@ def _contexto_drawer(request, ticket, edit_form=None):
         'edit_form': edit_form or (TicketUpdateForm(instance=ticket, user=request.user) if pode_editar else None),
         'mostrar_edicao': edit_form is not None,
         'ti_online': ti_online,
+        'painel_esclarecimento_ia': ultimo_esclarecimento_ou_questionario_aberto(ticket),
     }
 
 class KanbanView(ModuloObrigatorioMixin, TemplateView):
@@ -1073,6 +1079,65 @@ def ticket_comments(request, pk):
     response = render(request, 'helpdesk/_comments_list.html', _contexto_comentarios(request, ticket))
     if deleted or mencoes_vistas:
         response['HX-Trigger'] = json.dumps({'ticketRead': True})
+    return response
+
+
+@requer_modulo(MODULO_HELPDESK)
+@require_POST
+def ticket_responder_opcao(request, ticket_pk, comment_pk):
+    """Registra escolha de questionário do Assistente e agenda nova rodada."""
+    from helpdesk.assistente_services import (
+        AssistenteServiceError,
+        responder_opcao_questionario,
+    )
+
+    ticket = get_object_or_404(Ticket, pk=ticket_pk, is_active=True)
+    if not usuario_pode_comentar_chamado(request.user, ticket):
+        return HttpResponseForbidden('Sem permissão para responder neste chamado.')
+    comment = get_object_or_404(
+        Comment, pk=comment_pk, ticket=ticket, is_active=True, is_assistente=True,
+    )
+    opcao_id = (request.POST.get('opcao_id') or '').strip()
+    try:
+        resultado = responder_opcao_questionario(
+            ticket, comment, opcao_id, request.user,
+        )
+    except AssistenteServiceError as exc:
+        return HttpResponse(str(exc), status=getattr(exc, 'status_code', 400) or 400)
+
+    resposta_id = resultado.get('resposta_comment_id')
+    if resposta_id:
+        try:
+            from helpdesk.audit import log_comentario
+            log_comentario(
+                ticket,
+                request.user,
+                resultado.get('text') or '',
+                metadata={
+                    'resposta_questionario': True,
+                    'escolhida_id': resultado.get('escolhida_id'),
+                },
+            )
+        except Exception:
+            pass
+        try:
+            adicionar_nao_lido(ticket, request.user)
+            agendar_notificacao_chamado(
+                ticket,
+                request.user,
+                EVENTO_COMMENT,
+                (resultado.get('text') or '')[:120],
+            )
+        except Exception:
+            pass
+        _agendar_assistente(ticket.pk, comment_id=resposta_id, gatilho='auto')
+
+    response = render(
+        request,
+        'helpdesk/_comments_list.html',
+        _contexto_comentarios(request, ticket),
+    )
+    response['HX-Trigger'] = json.dumps({'ticketUpdated': True})
     return response
 
 

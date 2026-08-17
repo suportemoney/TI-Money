@@ -47,6 +47,8 @@ from helpdesk.assistente_services import (
     pedir_ajuda_ti,
     recusar_chamado,
     send_assistente_message,
+    enviar_esclarecimento,
+    enviar_pergunta_opcoes,
     set_ticket_priority,
     set_ticket_status,
     ticket_tem_orientacao_interna_pendente,
@@ -82,7 +84,9 @@ TOOLS_SPEC = [
             'description': (
                 'Envia mensagem. Público (interno=false): BREVE e direta (1–2 frases), '
                 'sem diagnóstico longo. Interno (interno=true): pode detalhar para a TI. '
-                'Não repita o que já disse no histórico. Prefira 2–4 bolhas públicas curtas.'
+                'Não repita o que já disse no histórico. Prefira 2–4 bolhas públicas curtas. '
+                'Se precisar de escolha do solicitante, use enviar_pergunta_opcoes. '
+                'Se faltar dado vago do solicitante, use enviar_esclarecimento.'
             ),
             'parameters': {
                 'type': 'object',
@@ -101,6 +105,64 @@ TOOLS_SPEC = [
                     },
                 },
                 'required': ['text'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'enviar_pergunta_opcoes',
+            'description': (
+                'Envia pergunta PÚBLICA com 2–6 opções clicáveis para o solicitante/criador. '
+                'Use quando precisar de uma escolha clara (sim/não, tipo de problema, etc.). '
+                'A resposta virá como comentário "Opção selecionada: A — ...". '
+                'Não repita questionário se já houver um aberto no histórico.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'pergunta': {
+                        'type': 'string',
+                        'description': 'Pergunta objetiva ao solicitante.',
+                    },
+                    'opcoes': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Lista de 2 a 6 rótulos de opção.',
+                    },
+                    'contexto_curto': {
+                        'type': 'string',
+                        'description': 'Frase curta opcional antes da pergunta.',
+                    },
+                },
+                'required': ['pergunta', 'opcoes'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'enviar_esclarecimento',
+            'description': (
+                'Envia bloco PÚBLICO mais longo (~até 1200 chars) pedindo esclarecimento '
+                'quando o relato estiver vago ou faltar informação do solicitante. '
+                'Pode listar lacunas. Prefira isto a pedir_ajuda_ti quando a dúvida é do usuário. '
+                'pedir_ajuda_ti fica para dúvida operacional da TI.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'texto': {
+                        'type': 'string',
+                        'description': 'Explicação + perguntas de esclarecimento ao solicitante.',
+                    },
+                    'lacunas': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Lista opcional do que ainda falta saber.',
+                    },
+                },
+                'required': ['texto'],
             },
         },
     },
@@ -613,8 +675,9 @@ TOOLS_SPEC = [
             'name': 'pedir_ajuda_ti',
             'description': (
                 'Pergunta no chat INTERNO mencionando todos os TI online. '
-                'Use quando faltar informação, dúvida ou o usuário não entender. '
-                'Anti-spam: não repita se já houver pedido recente sem resposta.'
+                'Use só para dúvida operacional da TI (procedimento interno, acesso, chip). '
+                'Se faltar dado do solicitante, prefira enviar_pergunta_opcoes ou '
+                'enviar_esclarecimento. Anti-spam: não repita se já houver pedido recente.'
             ),
             'parameters': {
                 'type': 'object',
@@ -970,7 +1033,36 @@ def _montar_contexto(
         marca = ' [INTERNO TI]' if c.is_interno else ''
         extra = ' [tem anexo]' if c.attachment else ''
         gatilho_marca = ' [GATILHO DESTA RODADA]' if comment_id and c.pk == comment_id else ''
-        linhas.append(f'[{autor}]{marca}{extra}{gatilho_marca} {c.text}')
+        payload = c.structured_payload or {}
+        payload_marca = ''
+        if payload.get('type') == 'questionario':
+            status_q = payload.get('status') or 'aberto'
+            escolhida = payload.get('escolhida_id')
+            if status_q == 'respondido' and escolhida:
+                label = ''
+                for o in payload.get('opcoes') or []:
+                    if str(o.get('id')) == str(escolhida):
+                        label = o.get('label') or ''
+                        break
+                payload_marca = (
+                    f' [QUESTIONARIO_RESPONDIDO opcao={escolhida}'
+                    f'{(" label=" + label) if label else ""}]'
+                )
+            elif status_q == 'aberto':
+                payload_marca = ' [QUESTIONARIO_ABERTO — não repita a mesma pergunta]'
+            else:
+                payload_marca = f' [QUESTIONARIO_{status_q.upper()}]'
+        elif payload.get('type') == 'esclarecimento':
+            status_e = payload.get('status') or 'aberto'
+            payload_marca = f' [ESCLARECIMENTO_{status_e.upper()}]'
+        elif payload.get('type') == 'resposta_questionario':
+            payload_marca = (
+                f' [RESPOSTA_QUESTIONARIO opcao={payload.get("escolhida_id")}'
+                f' label={payload.get("label") or ""}]'
+            )
+        linhas.append(
+            f'[{autor}]{marca}{extra}{gatilho_marca}{payload_marca} {c.text}'
+        )
 
     chunks, hybrid = _chunks_relevantes(ticket)
     from integracoes.regras_seed import chunk_eh_regra
@@ -1050,8 +1142,10 @@ def _system_prompt() -> str:
         'além das tools disponíveis. '
         'Não invente procedimentos fora desses chunks e do histórico do chamado.\n\n'
         'Lembretes fixos:\n'
-        '- Sempre envie ao menos uma mensagem via send_assistente_message nesta interação.\n'
-        '- Público = breve (1–2 frases). Detalhes/diagnóstico = interno=true.\n'
+        '- Sempre envie ao menos uma mensagem nesta interação '
+        '(send_assistente_message, enviar_pergunta_opcoes ou enviar_esclarecimento).\n'
+        '- Público = breve (1–2 frases), exceto enviar_esclarecimento (bloco maior).\n'
+        '- Detalhes/diagnóstico = interno=true.\n'
         '- Nunca repita nem reformule mensagem já enviada no histórico recente.\n'
         '- Nunca peça para reenviar/repetir algo que já está no histórico: use o dado.\n'
         '- Se um pedido já foi feito, continue de onde parou em vez de recomeçar.\n'
@@ -1060,9 +1154,12 @@ def _system_prompt() -> str:
         '- Recusado=sim: se a TI pedir para tirar a recusa, chame limpar_recusa_chamado. '
         'Nunca diga que não está recusado se Recusado=sim.\n'
         '- Pergunte no máximo uma vez por dado faltante, e só o que ainda falta.\n'
+        '- Se faltar dado do solicitante ou o relato estiver vago: '
+        'enviar_pergunta_opcoes (escolha clara) ou enviar_esclarecimento (lacunas).\n'
+        '- Se já houver QUESTIONARIO_ABERTO no histórico, aguarde a resposta; não repita.\n'
+        '- pedir_ajuda_ti só para dúvida operacional da TI (não para perguntar ao usuário).\n'
         '- NÃO use status PENDING.\n'
         '- Defina/atualize tag curta com definir_tag_chamado quando o tema estiver claro.\n'
-        '- Se faltar info: pedir_ajuda_ti (menciona TI online) em vez de inventar.\n'
         '- Pedido para mencionar alguém: consultar_usuario e use o username exato '
         '(@login) em send_assistente_message (interno se o pedido veio interno).\n'
         '- E-mail/chip: consultar_email e consultar_chips pelo nome; sobrenome extra '
@@ -1083,6 +1180,25 @@ def _executar_tool(ticket_id: int, name: str, args: dict) -> str:
                     ticket_id,
                     args.get('text', ''),
                     interno=bool(args.get('interno')),
+                ),
+                ensure_ascii=False,
+            )
+        if name == 'enviar_pergunta_opcoes':
+            return json.dumps(
+                enviar_pergunta_opcoes(
+                    ticket_id,
+                    args.get('pergunta') or '',
+                    args.get('opcoes') or [],
+                    contexto_curto=args.get('contexto_curto') or '',
+                ),
+                ensure_ascii=False,
+            )
+        if name == 'enviar_esclarecimento':
+            return json.dumps(
+                enviar_esclarecimento(
+                    ticket_id,
+                    args.get('texto') or '',
+                    lacunas=args.get('lacunas') or None,
                 ),
                 ensure_ascii=False,
             )
@@ -1416,6 +1532,10 @@ def _rodada_tools(
         try:
             parsed = json.loads(result)
             if name == 'send_assistente_message' and parsed.get('ok'):
+                enviou_mensagem = True
+            if name == 'enviar_pergunta_opcoes' and parsed.get('ok'):
+                enviou_mensagem = True
+            if name == 'enviar_esclarecimento' and parsed.get('ok'):
                 enviou_mensagem = True
             if name == 'recusar_chamado' and parsed.get('ok'):
                 enviou_mensagem = True

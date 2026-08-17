@@ -1275,3 +1275,103 @@ class AssistenteContextualTestCase(TestCase):
         self.assertFalse(self.ticket.is_rejected)
         self.assertEqual((self.ticket.rejection_reason or ''), '')
         self.assertEqual(self.ticket.status, Ticket.StatusChoices.IN_PROGRESS)
+
+
+class AssistenteQuestionarioTestCase(TestCase):
+    """Questionário com opções e esclarecimento público longo."""
+
+    def setUp(self):
+        self.categoria = TicketCategory.objects.get_or_create(
+            name='Dúvidas', defaults={'is_active': True},
+        )[0]
+        self.user = CustomUser.objects.create_user(
+            username='user_q', password='pass', role=CustomUser.RoleChoices.STANDARD,
+        )
+        self.ticket = Ticket.objects.create(
+            title='Sem internet',
+            description='Não entra no sistema',
+            category=self.categoria,
+            created_by=self.user,
+            requester_user=self.user,
+            requester_name='User Q',
+        )
+
+    def test_enviar_pergunta_opcoes_cria_payload(self):
+        from helpdesk.assistente_services import enviar_pergunta_opcoes
+
+        r = enviar_pergunta_opcoes(
+            self.ticket.pk,
+            'Qual é o problema?',
+            ['Sem internet', 'Senha bloqueada', 'Outro'],
+            contexto_curto='Para eu te ajudar melhor:',
+        )
+        self.assertTrue(r['ok'])
+        comment = Comment.objects.get(pk=r['comment_id'])
+        self.assertTrue(comment.is_assistente)
+        self.assertFalse(comment.is_interno)
+        payload = comment.structured_payload
+        self.assertEqual(payload['type'], 'questionario')
+        self.assertEqual(payload['status'], 'aberto')
+        self.assertEqual(len(payload['opcoes']), 3)
+        self.assertEqual(payload['opcoes'][0]['id'], 'a')
+        self.assertIn('Qual é o problema?', comment.text)
+
+    def test_responder_opcao_valida_e_invalida(self):
+        from helpdesk.assistente_services import (
+            AssistenteServiceError,
+            enviar_pergunta_opcoes,
+            responder_opcao_questionario,
+        )
+
+        r = enviar_pergunta_opcoes(
+            self.ticket.pk,
+            'Escolha o tipo',
+            ['Rede', 'Acesso'],
+        )
+        comment = Comment.objects.get(pk=r['comment_id'])
+
+        ok = responder_opcao_questionario(self.ticket, comment, 'b', self.user)
+        self.assertTrue(ok['ok'])
+        self.assertEqual(ok['escolhida_id'], 'b')
+        comment.refresh_from_db()
+        self.assertEqual(comment.structured_payload['status'], 'respondido')
+        self.assertEqual(comment.structured_payload['escolhida_id'], 'b')
+
+        resposta = Comment.objects.get(pk=ok['resposta_comment_id'])
+        self.assertEqual(resposta.author_id, self.user.pk)
+        self.assertIn('Opção selecionada: B', resposta.text)
+        self.assertIn('Acesso', resposta.text)
+
+        with self.assertRaises(AssistenteServiceError):
+            responder_opcao_questionario(self.ticket, comment, 'a', self.user)
+
+        r2 = enviar_pergunta_opcoes(
+            self.ticket.pk,
+            'Nova pergunta',
+            ['Sim', 'Não'],
+        )
+        comment2 = Comment.objects.get(pk=r2['comment_id'])
+        with self.assertRaises(AssistenteServiceError):
+            responder_opcao_questionario(self.ticket, comment2, 'z', self.user)
+
+    def test_esclarecimento_nao_corta_em_280(self):
+        from helpdesk.assistente_services import enviar_esclarecimento
+
+        longo = (
+            'Para eu entender o caso, preciso de mais detalhes. '
+            'Descreva o horário em que o erro aparece, se há mensagem na tela, '
+            'se outros colegas na mesma loja também são afetados e se já tentou '
+            'reiniciar o computador. '
+        ) * 4
+        self.assertGreater(len(longo), 280)
+        r = enviar_esclarecimento(
+            self.ticket.pk,
+            longo,
+            lacunas=['horário do erro', 'mensagem na tela'],
+        )
+        self.assertTrue(r['ok'])
+        comment = Comment.objects.get(pk=r['comment_id'])
+        self.assertEqual(comment.structured_payload['type'], 'esclarecimento')
+        self.assertGreater(len(comment.text), 280)
+        self.assertLessEqual(len(comment.text), 1400)
+        self.assertIn('horário do erro', comment.text)
