@@ -15,7 +15,6 @@ urlpatterns = [
     # Diagnóstico temporário do 500 (staff/superuser) — remover após o incidente
     path('diag/last-500/', views_diag.diag_last_500, name='diag_last_500'),
     path('diag/helpdesk-check/', views_diag.diag_helpdesk_check, name='diag_helpdesk_check'),
-]
 
     # Gestão de usuários (somente ADMIN)
     path('usuarios/', views.UserListView.as_view(), name='user_list'),
