@@ -258,7 +258,7 @@
         {% if pode_comentar %}
         <form id="comment-form-{{ ticket.id }}" hx-post="{% url 'helpdesk:ticket_add_comment' ticket.id %}" hx-encoding="multipart/form-data" hx-target="#comments-list" hx-swap="innerHTML" hx-on::after-request="this.reset(); document.getElementById('comment-attachment-preview-{{ ticket.id }}').classList.add('hidden'); document.getElementById('comment-attachment-preview-{{ ticket.id }}').classList.remove('flex'); var _m=document.getElementById('mention-dropdown-{{ ticket.id }}'); if(_m) _m.classList.add('hidden'); var _t=document.getElementById('comment-interno-{{ ticket.id }}'); if(_t){ _t.checked=false; var _lbl=document.getElementById('comment-interno-label-{{ ticket.id }}'); if(_lbl){ _lbl.classList.remove('bg-amber-100','border-amber-300','text-amber-900'); _lbl.classList.add('bg-white','border-slate-200','text-slate-600'); } }" class="flex flex-col gap-3">
             <div class="relative">
-                <textarea id="comment-text-{{ ticket.id }}" name="text" rows="2" placeholder="{% if eh_operador_helpdesk %}Adicione uma nota… Use @ para mencionar{% else %}Adicione uma nota ou atualização...{% endif %}" class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none shadow-inner bg-white"></textarea>
+                <textarea id="comment-text-{{ ticket.id }}" name="text" rows="2" placeholder="{% if eh_operador_helpdesk %}Adicione uma nota… Use @ para mencionar · Enter envia · Shift+Enter quebra linha{% else %}Adicione uma nota… Enter envia · Shift+Enter quebra linha{% endif %}" class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none shadow-inner bg-white" title="Enter envia · Shift+Enter quebra linha"></textarea>
                 {% if eh_operador_helpdesk %}
                 <ul id="mention-dropdown-{{ ticket.id }}"
                     class="hidden absolute left-0 right-0 bottom-full mb-1 z-30 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-sm"
@@ -324,6 +324,22 @@
             var mentionTimer = null;
         
             if (!form || !fileInput) return;
+
+            // Enter envia; Shift+Enter quebra linha (padrão de chat)
+            if (textarea) {
+                textarea.addEventListener('keydown', function(e) {
+                    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) {
+                        return;
+                    }
+                    // Com dropdown de @ aberto, Escape fecha; Enter ainda envia
+                    e.preventDefault();
+                    if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit();
+                    } else {
+                        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    }
+                });
+            }
 
             function csrfToken() {
                 var m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
