@@ -147,11 +147,25 @@
 
         <!-- Barra de Filtros -->
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-4">
-            <div class="flex-1 min-w-[200px]">
+            <div class="flex-1 min-w-[180px]">
                 <label for="filter-chip-text"
                     class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Pesquisa rápida</label>
                 <input type="text" id="filter-chip-text" onkeyup="filterChips()"
-                    placeholder="Pesquise por linha, funcionário..."
+                    placeholder="Pesquise por linha, operadora, envelope..."
+                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
+            </div>
+            <div class="w-48 flex-shrink-0">
+                <label for="filter-chip-funcionario"
+                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Funcionário</label>
+                <input type="text" id="filter-chip-funcionario" onkeyup="filterChips()"
+                    placeholder="Nome do funcionário..."
+                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
+            </div>
+            <div class="w-48 flex-shrink-0">
+                <label for="filter-chip-observacao"
+                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Observação</label>
+                <input type="text" id="filter-chip-observacao" onkeyup="filterChips()"
+                    placeholder="Texto da observação..."
                     class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
             </div>
             <div class="w-48 flex-shrink-0">
@@ -210,29 +224,71 @@
             <table class="w-full text-left text-sm whitespace-nowrap">
                 <thead class="bg-slate-50 border-b border-slate-200">
                     <tr>
-                        <th data-col-key="linha" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">Linha</th>
-                        <th data-col-key="operadora" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">Operadora</th>
-                        <th data-col-key="email" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">E-mail</th>
-                        <th data-col-key="status" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">Status</th>
-                        <th data-col-key="uso" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">Uso</th>
-                        <th data-col-key="envelope" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">Envelope</th>
-                        <th data-col-key="funcionario" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs">Funcionário</th>
+                        <th data-col-key="linha" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(0, 'data-line', 'number')">
+                            <span class="flex items-center gap-1">
+                                Linha
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
+                        <th data-col-key="operadora" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(1, null, 'text')">
+                            <span class="flex items-center gap-1">
+                                Operadora
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
+                        <th data-col-key="email" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(2, 'data-email-address', 'text')">
+                            <span class="flex items-center gap-1">
+                                E-mail
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
+                        <th data-col-key="status" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(3, null, 'text')">
+                            <span class="flex items-center gap-1">
+                                Status
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
+                        <th data-col-key="uso" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(4, null, 'text')">
+                            <span class="flex items-center gap-1">
+                                Uso
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
+                        <th data-col-key="envelope" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(5, null, 'text')">
+                            <span class="flex items-center gap-1">
+                                Envelope
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
+                        <th data-col-key="funcionario" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
+                            onclick="sortTable(6, null, 'text')">
+                            <span class="flex items-center gap-1">
+                                Funcionário
+                                <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
+                            </span>
+                        </th>
                         <th data-col-key="ativacao" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
-                            onclick="sortTable(7, 'data-activated')">
+                            onclick="sortTable(7, 'data-activated', 'date')">
                             <span class="flex items-center gap-1">
                                 Data Ativação
                                 <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
                             </span>
                         </th>
                         <th data-col-key="movimentacao" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
-                            onclick="sortTable(8, 'data-movement')">
+                            onclick="sortTable(8, 'data-movement', 'date')">
                             <span class="flex items-center gap-1">
                                 Últ. Movimentação
                                 <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
                             </span>
                         </th>
                         <th data-col-key="recarga" class="px-6 py-4 font-semibold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group"
-                            onclick="sortTable(9, 'data-recharge')">
+                            onclick="sortTable(9, 'data-recharge', 'date')">
                             <span class="flex items-center gap-1">
                                 Recarga
                                 <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span>
@@ -247,8 +303,11 @@
                         data-status="{{ chip.status }}" data-usage="{{ chip.usage_status }}" data-activated="{{ chip.activated_at|date:'Y-m-d'|default:'' }}"
                         data-movement="{{ chip.last_movement_at|date:'Y-m-d'|default:'' }}"
                         data-recharge="{{ chip.recharge_due_at|date:'Y-m-d'|default:'' }}"
+                        data-line="{{ chip.line_number }}"
                         data-email="{{ chip.email_vinculado|yesno:'true,false' }}"
-                        data-obs="{{ chip.observacao|yesno:'true,false' }}">
+                        data-email-address="{% if chip.email_vinculado %}{{ chip.email_vinculado.address }}{% endif %}"
+                        data-obs="{{ chip.observacao|yesno:'true,false' }}"
+                        data-obs-text="{{ chip.observacao|default:'' }}">
                         <td data-col-key="linha" class="px-6 py-4 font-mono font-bold text-slate-900 chip-linha">{{ chip.formatted_line_number }}</td>
                         <td data-col-key="operadora" class="px-6 py-4 text-slate-800 chip-operadora">{{ chip.operator.name }}</td>
                         <td data-col-key="email" class="px-6 py-4" id="email-td-{{ chip.id }}">
@@ -702,6 +761,8 @@
 
     function filterChips() {
         var textInput = ($('#filter-chip-text').val() || '').toLowerCase();
+        var funcionarioInput = ($('#filter-chip-funcionario').val() || '').toLowerCase();
+        var obsInput = ($('#filter-chip-observacao').val() || '').toLowerCase();
         var opInput = $('#filter-chip-operator').val();
         var statusInput = $('#filter-chip-status').val();
         var usageInput = $('#filter-chip-usage').val();
@@ -716,14 +777,17 @@
             var operadora = ($row.find('.chip-operadora').text() || '').toLowerCase();
             var envelope = ($row.find('.chip-envelope').text() || '').toLowerCase();
             var funcionario = ($row.find('.chip-funcionario').text() || '').toLowerCase();
+            var observacao = ($row.attr('data-obs-text') || '').toLowerCase();
 
             var textDigits = textInput.replace(/\D/g, '');
-            var matchText = linha.includes(textInput) ||
+            var matchText = !textInput ||
+                linha.includes(textInput) ||
                 (textDigits !== '' && linha.replace(/\D/g, '').includes(textDigits)) ||
                 operadora.includes(textInput) ||
-                envelope.includes(textInput) ||
-                funcionario.includes(textInput);
+                envelope.includes(textInput);
 
+            var matchFuncionario = !funcionarioInput || funcionario.includes(funcionarioInput);
+            var matchObsText = !obsInput || observacao.includes(obsInput);
             var matchOp = !opInput || $row.attr('data-operator') === opInput;
             var matchStatus = !statusInput || $row.attr('data-status') === statusInput;
             var matchUsage = !usageInput || $row.attr('data-usage') === usageInput;
@@ -731,7 +795,7 @@
             var matchNoEmail = !noEmailOnly || !hasEmail;
             var matchHasObs = !hasObsOnly || $row.attr('data-obs') === 'true';
 
-            if (matchText && matchOp && matchStatus && matchUsage && matchNoEmail && matchHasObs) {
+            if (matchText && matchFuncionario && matchObsText && matchOp && matchStatus && matchUsage && matchNoEmail && matchHasObs) {
                 $row.show();
             } else {
                 $row.hide();
@@ -741,35 +805,54 @@
     window.filterChips = filterChips;
 
     var currentSort = { col: -1, asc: true };
-    function sortTable(colIndex, attrName) {
+    function sortTable(colIndex, attrName, sortType) {
         var tbody = document.getElementById('chips-tbody');
+        var $table = $(tbody).closest('table');
         var rows = Array.from(tbody.querySelectorAll('tr'));
-        if (rows.length <= 1 && rows[0] && rows[0].querySelector('td').getAttribute('colspan')) return;
+        var firstCell = rows[0] && rows[0].querySelector('td');
+        if (rows.length <= 1 && firstCell && firstCell.getAttribute('colspan')) return;
 
         var asc = currentSort.col === colIndex ? !currentSort.asc : true;
         currentSort.col = colIndex;
         currentSort.asc = asc;
 
-        $('.sort-icon').text('↕');
+        $table.find('.sort-icon').text('↕');
+        $table.find('thead th').eq(colIndex).find('.sort-icon').text(asc ? '▲' : '▼');
 
-        var header = $('thead th').eq(colIndex);
-        header.find('.sort-icon').text(asc ? '▲' : '▼');
+        function normalizeSortValue(value) {
+            if (value === null || value === undefined) return '';
+            var text = String(value).trim();
+            if (text === '' || text === '—' || text === '-') return '';
+            return text;
+        }
+
+        function getSortValue(row) {
+            var val;
+            if (attrName) {
+                val = row.getAttribute(attrName) || '';
+            } else {
+                val = $(row).find('td').eq(colIndex).text().trim();
+            }
+            return normalizeSortValue(val);
+        }
 
         rows.sort(function (a, b) {
-            var valA, valB;
-            if (attrName) {
-                valA = a.getAttribute(attrName) || '';
-                valB = b.getAttribute(attrName) || '';
-            } else {
-                valA = $(a).find('td').eq(colIndex).text().trim().toLowerCase();
-                valB = $(b).find('td').eq(colIndex).text().trim().toLowerCase();
-            }
+            var valA = getSortValue(a);
+            var valB = getSortValue(b);
 
             if (valA === valB) return 0;
             if (valA === '') return 1;
             if (valB === '') return -1;
 
-            if (valA < valB) return asc ? -1 : 1;
+            if (sortType === 'number') {
+                var numA = parseFloat(valA.replace(/\D/g, '')) || 0;
+                var numB = parseFloat(valB.replace(/\D/g, '')) || 0;
+                return asc ? (numA - numB) : (numB - numA);
+            }
+
+            var cmpA = valA.toLowerCase();
+            var cmpB = valB.toLowerCase();
+            if (cmpA < cmpB) return asc ? -1 : 1;
             return asc ? 1 : -1;
         });
 
