@@ -169,8 +169,19 @@
         </div>
         {% if comment.text %}
         {% if comment.is_assistente %}
+        {% if comment.structured_payload.type == "questionario" and comment.structured_payload.status == "aberto" and painel_esclarecimento_ia and painel_esclarecimento_ia.id == comment.id %}
+        {# Evita duplicar o questionário: opções ficam só no painel do topo #}
+        <div class="assistente-md">
+            {% if comment.structured_payload.contexto_curto %}
+            <p class="memoria-md-p text-slate-500">{{ comment.structured_payload.contexto_curto }}</p>
+            {% endif %}
+            <p class="memoria-md-p">{{ comment.structured_payload.pergunta }}</p>
+        </div>
+        <p class="mt-2 text-xs text-violet-600">Responda pelas opções no painel <strong>Questionário da IA</strong> acima.</p>
+        {% else %}
         <div class="assistente-md {% if comment.structured_payload.type == 'esclarecimento' %}assistente-md-largo{% endif %}">{{ comment.text|markdown_leve }}</div>
         {% include "helpdesk/_questionario_opcoes.html" %}
+        {% endif %}
         {% else %}
         <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{{ comment.text|highlight_mentions }}</p>
         {% endif %}
