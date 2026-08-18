@@ -1,25 +1,18 @@
 {% load helpdesk_permissions %}
 <style>
-@keyframes letreiro-scroll {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-100%); }
-}
 .letreiro-track {
     display: inline-block;
     white-space: nowrap;
-    padding-left: 100%;
-    animation: letreiro-scroll 40s linear infinite;
+    width: max-content;
     color: #dc2626;
     font-weight: 500;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     text-shadow: none;
+    will-change: transform;
 }
 .letreiro-track strong {
     font-weight: 800;
-}
-.letreiro-wrap:hover .letreiro-track {
-    animation-play-state: paused;
 }
 </style>
 {# Slot estável: HTMX troca só o miolo quando o poll/criação dispara letreiroUpdated #}
@@ -30,3 +23,74 @@
      hx-swap="innerHTML">
     {% include "helpdesk/_letreiro_inner.html" %}
 </div>
+<script>
+(function() {
+    if (window.__letreiroScrollInit) return;
+    window.__letreiroScrollInit = true;
+
+    const PX_POR_SEGUNDO = 90;
+    const PAUSA_FIM_MS = 4000;
+
+    function parar(track) {
+        if (track && track._letreiroAnim) {
+            try { track._letreiroAnim.cancel(); } catch (e) {}
+            track._letreiroAnim = null;
+        }
+    }
+
+    function iniciarLetreiro(slot) {
+        const wrap = slot.querySelector('.letreiro-wrap');
+        const track = slot.querySelector('.letreiro-track');
+        if (!wrap || !track || typeof track.animate !== 'function') return;
+
+        parar(track);
+
+        const wrapW = wrap.clientWidth;
+        const contentW = track.scrollWidth;
+        if (wrapW < 8 || contentW < 8) return;
+
+        const viagemMs = Math.max(4000, ((wrapW + contentW) / PX_POR_SEGUNDO) * 1000);
+        const totalMs = viagemMs + PAUSA_FIM_MS;
+        const fimViagem = viagemMs / totalMs;
+
+        track._letreiroAnim = track.animate([
+            { transform: 'translateX(' + wrapW + 'px)', offset: 0 },
+            { transform: 'translateX(-' + contentW + 'px)', offset: fimViagem },
+            { transform: 'translateX(-' + contentW + 'px)', offset: 1 },
+        ], {
+            duration: totalMs,
+            iterations: Infinity,
+            easing: 'linear',
+        });
+
+        wrap.onmouseenter = function() {
+            if (track._letreiroAnim) track._letreiroAnim.pause();
+        };
+        wrap.onmouseleave = function() {
+            if (track._letreiroAnim) track._letreiroAnim.play();
+        };
+    }
+
+    function noSlot() {
+        const slot = document.getElementById('helpdesk-letreiro-slot');
+        if (slot) iniciarLetreiro(slot);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', noSlot);
+    } else {
+        noSlot();
+    }
+
+    document.body.addEventListener('htmx:afterSwap', function(ev) {
+        const alvo = ev.detail && ev.detail.target;
+        if (alvo && alvo.id === 'helpdesk-letreiro-slot') noSlot();
+    });
+
+    let resizeTimer = null;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(noSlot, 200);
+    });
+})();
+</script>
