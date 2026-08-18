@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import re
+
 from django import template
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
@@ -70,3 +74,18 @@ def highlight_mentions(text):
     # reaplicamos no texto já escapado; padrão não contém HTML
     highlighted = MENTION_RE.sub(_repl, escaped)
     return mark_safe(highlighted)
+
+
+_RE_NEGRITO_DUPLO = re.compile(r'\*\*(.+?)\*\*')
+_RE_NEGRITO_SIMPLES = re.compile(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)')
+
+
+@register.filter(name='negrito_asterisco')
+def negrito_asterisco(text):
+    """Converte *texto* e **texto** em negrito (HTML escapado)."""
+    if not text:
+        return ''
+    escaped = escape(str(text))
+    escaped = _RE_NEGRITO_DUPLO.sub(r'<strong>\1</strong>', escaped)
+    escaped = _RE_NEGRITO_SIMPLES.sub(r'<strong>\1</strong>', escaped)
+    return mark_safe(escaped)
