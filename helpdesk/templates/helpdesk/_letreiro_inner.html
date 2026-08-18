@@ -4,7 +4,7 @@
      title="Comunicados do letreiro — Central Informativa">
     <div class="letreiro-track text-base md:text-lg">
         {% for m in letreiro_mensagens %}
-        <span class="inline-block px-4">{{ m.text|truncatechars:160 }}</span>{% if not forloop.last %}<span class="inline-block px-2" aria-hidden="true"> · </span>{% endif %}
+        <span class="inline-block px-4">{{ m.text }}</span>{% if not forloop.last %}<span class="inline-block px-2" aria-hidden="true"> · </span>{% endif %}
         {% endfor %}
     </div>
 </div>
