@@ -17,7 +17,7 @@ from helpdesk.assistente_services import (
     liberar_licenca_ramal,
 )
 
-_DESC_CONFIRMA = ' Exige confirmação explícita no chat (sim / confirma).'
+_DESC_CONFIRMA = ' Exige clique em Confirmar na interface do wizard.'
 
 
 def _fn(name: str, description: str, properties: dict, required: list | None = None) -> dict:

@@ -32,10 +32,32 @@ def _inline(texto: str) -> str:
     return texto
 
 
+def _eh_sep_tabela(linha: str) -> bool:
+    """Linha tipo |---|:---| de tabela markdown."""
+    s = (linha or '').strip()
+    if '|' not in s:
+        return False
+    miolo = s.strip('|')
+    celulas = [c.strip().replace(' ', '') for c in miolo.split('|')]
+    if not celulas:
+        return False
+    return all(re.fullmatch(r':?-{3,}:?', c or '') for c in celulas)
+
+
+def _celulas_tabela(linha: str) -> list[str]:
+    s = (linha or '').strip()
+    if s.startswith('|'):
+        s = s[1:]
+    if s.endswith('|'):
+        s = s[:-1]
+    return [c.strip() for c in s.split('|')]
+
+
 def render_markdown_leve(texto: str) -> str:
     """
     Converte Markdown simples em HTML seguro (escapa primeiro).
-    Suporta: negrito, itálico, código inline, links https, títulos, listas e parágrafos.
+    Suporta: negrito, itálico, código inline, links https, títulos, listas,
+    tabelas pipe e parágrafos.
     """
     if not texto:
         return ''
@@ -60,6 +82,37 @@ def render_markdown_leve(texto: str) -> str:
             conteudo = _inline(html.escape(m_h.group(2).strip()))
             blocos.append(f'<h{nivel} class="memoria-md-h">{conteudo}</h{nivel}>')
             i += 1
+            continue
+
+        # Tabela pipe: cabeçalho + separador |---|
+        if '|' in stripped and i + 1 < n and _eh_sep_tabela(linhas[i + 1]):
+            cab = _celulas_tabela(stripped)
+            i += 2
+            corpo: list[list[str]] = []
+            while i < n:
+                s = linhas[i].strip()
+                if not s or '|' not in s or _eh_sep_tabela(s):
+                    break
+                if re.match(r'^(#{1,3}\s+|\d+\.\s+|[-*•]\s+)', s):
+                    break
+                corpo.append(_celulas_tabela(s))
+                i += 1
+            thead = ''.join(
+                f'<th>{_inline(html.escape(c))}</th>' for c in cab
+            )
+            rows = []
+            for row in corpo:
+                while len(row) < len(cab):
+                    row.append('')
+                tds = ''.join(
+                    f'<td>{_inline(html.escape(c))}</td>' for c in row[: len(cab)]
+                )
+                rows.append(f'<tr>{tds}</tr>')
+            blocos.append(
+                '<div class="memoria-md-table-wrap">'
+                f'<table class="memoria-md-table"><thead><tr>{thead}</tr></thead>'
+                f'<tbody>{"".join(rows)}</tbody></table></div>'
+            )
             continue
 
         # Lista numerada
@@ -95,6 +148,8 @@ def render_markdown_leve(texto: str) -> str:
             if not s:
                 break
             if re.match(r'^(#{1,3}\s+|\d+\.\s+|[-*•]\s+)', s):
+                break
+            if '|' in s and i + 1 < n and _eh_sep_tabela(linhas[i + 1]):
                 break
             partes.append(_inline(html.escape(s)))
             i += 1

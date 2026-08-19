@@ -17,6 +17,8 @@ from integracoes.wizard_anexos import extrair_anexos_wizard
 
 logger = logging.getLogger(__name__)
 
+SESSION_PLANO = 'gestor_wizard_plano'
+
 
 def _json_body(request) -> dict:
     try:
@@ -51,7 +53,12 @@ def wizard_chat(request):
             if row.get('role') == 'assistant':
                 row['content_html'] = render_markdown_leve(row.get('content') or '')
             payload.append(row)
-        return JsonResponse({'ok': True, 'messages': payload})
+        return JsonResponse({
+            'ok': True,
+            'messages': payload,
+            'plano': list(request.session.get(SESSION_PLANO) or []),
+            'aguardando_confirmacao': bool(request.session.get(SESSION_PLANO)),
+        })
 
     body = _json_body(request)
     anexos = body.get('anexos') if isinstance(body.get('anexos'), list) else []
@@ -92,6 +99,11 @@ def wizard_chat(request):
     historico.append({'role': 'user', 'content': texto_historico})
     historico.append({'role': 'assistant', 'content': reply})
     request.session[SESSION_KEY] = historico[-MAX_HISTORICO:]
+    plano = resultado.get('plano') or []
+    if resultado.get('aguardando_confirmacao'):
+        request.session[SESSION_PLANO] = plano
+    else:
+        request.session[SESSION_PLANO] = []
     request.session.modified = True
 
     return JsonResponse({
@@ -99,6 +111,8 @@ def wizard_chat(request):
         'reply': reply,
         'reply_html': render_markdown_leve(reply),
         'mutacoes': resultado.get('mutacoes') or [],
+        'plano': plano,
+        'aguardando_confirmacao': bool(resultado.get('aguardando_confirmacao')),
     })
 
 
@@ -110,5 +124,6 @@ def wizard_chat_limpar(request):
     if recusa:
         return recusa
     request.session[SESSION_KEY] = []
+    request.session[SESSION_PLANO] = []
     request.session.modified = True
     return JsonResponse({'ok': True, 'messages': []})

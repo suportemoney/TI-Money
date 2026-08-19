@@ -136,9 +136,11 @@ def _system_prompt_gestor() -> str:
         '- A página atual (URL + tabelas) está no contexto: use isso quando ele '
         'disser "essa tabela", "esses nomes", "aqui".\n'
         '- MUTAÇÃO (criar, excluir, liberar, alterar status, chip, alerta): '
-        'primeiro descreva o plano (o quê, em quais linhas/IDs). '
-        'NÃO chame a tool de mutação até a última mensagem do gestor ser '
-        'confirmação explícita (sim, confirma, faça, pode executar).\n'
+        'primeiro descreva o plano em tabela markdown '
+        '(colunas: ramal, de, para, ação). '
+        'NÃO chame a tool de mutação até o gestor clicar em Confirmar na interface. '
+        'NÃO peça para escrever sim/confirma/faça. '
+        'Dado faltando (ex.: login) vai numa seção Pendente, separado do que já pode executar.\n'
         '- Consultas (listar, consultar) podem rodar sem confirmação.\n'
         '- Tools de chamado só funcionam se houver ticket_id no contexto.\n'
         '- Você NÃO é o Assistente do helpdesk: não precisa mandar mensagem '
@@ -182,16 +184,20 @@ def _json_ok(payload) -> str:
     return json.dumps(payload, ensure_ascii=False, default=str)
 
 
-def _bloquear_mutacao(name: str, args: dict) -> str:
+def _bloquear_mutacao(name: str, args: dict, ctx: dict) -> str:
+    """Empilha no plano e pede à LLM para tabular, sem palavra mágica."""
+    plano = ctx.setdefault('plano', [])
+    plano.append({'tool': name, 'args': args or {}})
     return _json_ok({
         'ok': False,
         'precisa_confirmacao': True,
         'tool': name,
         'args': args,
         'error': (
-            'Mutação bloqueada até o gestor confirmar no chat '
-            '(diga "confirma", "sim" ou "pode executar"). '
-            f'Plano: {name} {json.dumps(args, ensure_ascii=False)}'
+            'Mutação em espera. Mostre o plano em tabela markdown. '
+            'O gestor clica em Confirmar na interface; '
+            'não peça para digitar sim/confirma/faça. '
+            f'Detalhe: {name} {json.dumps(args, ensure_ascii=False)}'
         ),
     })
 
@@ -283,7 +289,7 @@ def executar_tool_gestor(name: str, args: dict, ctx: dict) -> str:
     args = args or {}
     try:
         if name in GESTOR_TOOLS_MUTACAO and not ctx.get('confirma'):
-            return _bloquear_mutacao(name, args)
+            return _bloquear_mutacao(name, args, ctx)
 
         ticket_id = ctx.get('ticket_id')
         actor = ctx.get('actor')
@@ -492,6 +498,7 @@ def processar_gestor(
         'actor': user,
         'confirma': mensagem_confirma_mutacao(mensagem),
         'mutacoes': [],
+        'plano': [],
     }
 
     messages: list[dict[str, Any]] = [
@@ -547,14 +554,18 @@ def processar_gestor(
             else:
                 reply = (
                     'Não consegui concluir agora. Reformule o pedido ou '
-                    'confirme com "sim" se eu já mostrei o plano.'
+                    'use Confirmar se o plano já apareceu.'
                 )
     except LlmError as exc:
         logger.warning('Wizard LLM: %s', exc)
         raise
 
+    plano = ctx.get('plano') or []
+    mutacoes = ctx.get('mutacoes') or []
     return {
         'reply': reply,
-        'mutacoes': ctx.get('mutacoes') or [],
+        'mutacoes': mutacoes,
         'ticket_id': ticket_id,
+        'plano': plano,
+        'aguardando_confirmacao': bool(plano) and not mutacoes,
     }

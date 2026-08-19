@@ -11,6 +11,7 @@ from integracoes.gestor_runtime import (
     mensagem_confirma_mutacao,
     montar_contexto_pagina,
 )
+from integracoes.markdown_safe import render_markdown_leve
 from integracoes.wizard_anexos import extrair_anexos_wizard
 
 
@@ -45,6 +46,9 @@ class WizardConfirmacaoTest(TestCase):
         self.assertTrue(out.get('precisa_confirmacao'))
         self.assertFalse(out.get('ok'))
         self.assertEqual(ctx['mutacoes'], [])
+        self.assertEqual(len(ctx.get('plano') or []), 1)
+        self.assertEqual(ctx['plano'][0]['tool'], 'liberar_acesso_discador')
+        self.assertEqual(ctx['plano'][0]['args']['acesso_id'], 9)
 
     def test_criar_ramal_sem_confirma_nao_executa(self):
         ctx = {'confirma': False, 'ticket_id': None, 'actor': None, 'mutacoes': []}
@@ -53,6 +57,14 @@ class WizardConfirmacaoTest(TestCase):
         ))
         self.assertTrue(out.get('precisa_confirmacao'))
         self.assertEqual(ctx['mutacoes'], [])
+        self.assertEqual(ctx['plano'][0]['tool'], 'criar_ramal_discador')
+
+    def test_tabela_markdown_vira_table(self):
+        html = render_markdown_leve('| a | b |\n|---|---|\n| 1 | 2 |')
+        self.assertIn('<table', html)
+        self.assertIn('memoria-md-table', html)
+        self.assertIn('<th>', html)
+        self.assertIn('1', html)
 
 
 class WizardGateHttpTest(TestCase):
@@ -108,6 +120,30 @@ class WizardGateHttpTest(TestCase):
         kwargs = mock_proc.call_args.kwargs
         self.assertEqual(kwargs['pagina']['tabelas'], 'Agatha Roberta')
         self.assertIn('inativos', kwargs['mensagem'])
+
+    @patch('core.wizard_views.processar_gestor')
+    def test_post_repassa_aguardando_confirmacao(self, mock_proc):
+        plano = [{
+            'tool': 'atualizar_acesso_discador',
+            'args': {'acesso_id': 12, 'titular_nome': 'Ana'},
+        }]
+        mock_proc.return_value = {
+            'reply': 'confira o plano',
+            'mutacoes': [],
+            'plano': plano,
+            'aguardando_confirmacao': True,
+        }
+        self.client.force_login(self.gestor)
+        with override_settings(GESTOR_WIZARD_USER_IDS=[self.gestor.pk]):
+            resp = self.client.post(
+                reverse('wizard_chat'),
+                data=json.dumps({'message': 'corrija o nome', 'pagina': {}}),
+                content_type='application/json',
+            )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertTrue(payload.get('aguardando_confirmacao'))
+        self.assertEqual(payload.get('plano'), plano)
 
     def test_fab_so_para_allowlist(self):
         with override_settings(GESTOR_WIZARD_USER_IDS=[self.gestor.pk]):

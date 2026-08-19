@@ -17,7 +17,6 @@
                     </div>
                 </div>
                 <div id="gestor-wizard-actions">
-                    <button type="button" id="gestor-wizard-confirmar" title="Confirmar a última ação">Confirmar</button>
                     <button type="button" id="gestor-wizard-limpar" title="Nova conversa">Limpar</button>
                     <button type="button" id="gestor-wizard-fechar" title="Fechar" aria-label="Fechar wizard">
                         <i class="fa-solid fa-xmark"></i>
@@ -30,6 +29,10 @@
                     Descreva o que fazer nesta tela ou anexe print, PDF, CSV ou XLSX.
                     Alteração no discador só depois de Confirmar.
                 </div>
+            </div>
+            <div id="gestor-wizard-barra">
+                <span id="gestor-wizard-barra-txt">Alterações pendentes</span>
+                <button type="button" class="gestor-wizard-cta" id="gestor-wizard-barra-btn">Confirmar e executar</button>
             </div>
             <form id="gestor-wizard-form">
                 <textarea id="gestor-wizard-input" rows="3" maxlength="4000"
@@ -61,8 +64,10 @@
     const input = document.getElementById('gestor-wizard-input');
     const statusEl = document.getElementById('gestor-wizard-status');
     const btnLimpar = document.getElementById('gestor-wizard-limpar');
-    const btnConfirmar = document.getElementById('gestor-wizard-confirmar');
     const btnFechar = document.getElementById('gestor-wizard-fechar');
+    const barra = document.getElementById('gestor-wizard-barra');
+    const barraTxt = document.getElementById('gestor-wizard-barra-txt');
+    const barraBtn = document.getElementById('gestor-wizard-barra-btn');
     const fileInput = document.getElementById('gestor-wizard-file');
     const btnAnexar = document.getElementById('gestor-wizard-anexar');
     const filesEl = document.getElementById('gestor-wizard-files');
@@ -102,22 +107,91 @@
         };
     }
 
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     function addMsg(role, html, text) {
         msgs.classList.add('has-msgs');
         const wrap = document.createElement('div');
         wrap.className = 'gestor-wizard-msg ' + (role === 'user'
             ? 'gestor-wizard-msg-user'
-            : 'gestor-wizard-msg-assistant');
+            : 'gestor-wizard-msg-assistant memoria-md');
         if (html) wrap.innerHTML = html;
         else wrap.textContent = text || '';
-        msgs.appendChild(wrap);
+        const card = msgs.querySelector('.gestor-wizard-plano-card');
+        if (card) msgs.insertBefore(wrap, card);
+        else msgs.appendChild(wrap);
         msgs.scrollTop = msgs.scrollHeight;
     }
+
+    function resumoPlanoItem(item) {
+        const tool = (item && item.tool) || '';
+        const args = (item && item.args) || {};
+        if (tool === 'atualizar_acesso_discador') {
+            return {
+                ramal: args.ramal_numero || args.acesso_id || '—',
+                de: '—',
+                para: args.titular_nome || '—',
+                acao: 'Corrigir nome',
+            };
+        }
+        let json = '';
+        try { json = JSON.stringify(args); } catch (e) { json = ''; }
+        if (json.length > 72) json = json.slice(0, 69) + '…';
+        return {
+            ramal: args.ramal_numero || args.numero || args.acesso_id || '—',
+            de: '—',
+            para: json || '—',
+            acao: tool || 'alteração',
+        };
+    }
+
+    function pintarPlano(plano, aguardando) {
+        const lista = Array.isArray(plano) ? plano : [];
+        const show = !!(aguardando && lista.length);
+        let card = msgs.querySelector('.gestor-wizard-plano-card');
+        if (!show) {
+            if (card) card.remove();
+            barra.classList.remove('is-on');
+            return;
+        }
+        msgs.classList.add('has-msgs');
+        const n = lista.length;
+        const rotulo = n === 1 ? '1 alteração' : n + ' alterações';
+        if (!card) {
+            card = document.createElement('div');
+            card.className = 'gestor-wizard-plano-card';
+            msgs.appendChild(card);
+        }
+        const linhas = lista.map(function (item) {
+            const r = resumoPlanoItem(item);
+            return '<tr><td>' + escHtml(r.ramal) + '</td><td>' + escHtml(r.de) +
+                '</td><td>' + escHtml(r.para) + '</td><td>' + escHtml(r.acao) + '</td></tr>';
+        }).join('');
+        card.innerHTML =
+            '<h3>Plano (' + rotulo + ')</h3>' +
+            '<div class="memoria-md-table-wrap"><table class="memoria-md-table">' +
+            '<thead><tr><th>Ramal</th><th>De</th><th>Para</th><th>Ação</th></tr></thead>' +
+            '<tbody>' + linhas + '</tbody></table></div>' +
+            '<button type="button" class="gestor-wizard-cta" data-confirmar="1">Confirmar e executar</button>';
+        barraTxt.textContent = rotulo + ' pronta' + (n === 1 ? '' : 's') + ' para executar';
+        barra.classList.add('is-on');
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function confirmarPlano() { enviar('confirma'); }
 
     function setBusy(on) {
         statusEl.classList.toggle('is-on', !!on);
         form.querySelector('button[type="submit"]').disabled = !!on;
         input.disabled = !!on;
+        if (barraBtn) barraBtn.disabled = !!on;
+        msgs.querySelectorAll('.gestor-wizard-cta').forEach(function (b) { b.disabled = !!on; });
     }
 
     function abrir() {
@@ -215,11 +289,14 @@
         }).then(function (res) {
             if (!res.ok || !res.d.ok) {
                 addMsg('assistant', '', (res.d && res.d.error) || 'Falha no wizard.');
+                pintarPlano([], false);
                 return;
             }
             addMsg('assistant', res.d.reply_html || '', res.d.reply || '');
+            pintarPlano(res.d.plano, res.d.aguardando_confirmacao);
         }).catch(function (err) {
             addMsg('assistant', '', err && err.message ? err.message : 'Falha de rede ao falar com o wizard.');
+            pintarPlano([], false);
         }).finally(function () { setBusy(false); input.focus(); });
     }
 
@@ -233,7 +310,11 @@
             enviar(input.value);
         }
     });
-    btnConfirmar.addEventListener('click', function () { enviar('confirma'); });
+    barraBtn.addEventListener('click', confirmarPlano);
+    msgs.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-confirmar]');
+        if (btn) confirmarPlano();
+    });
     btnLimpar.addEventListener('click', function () {
         fetch(urlLimpar, {
             method: 'POST',
@@ -242,6 +323,7 @@
         }).then(function () {
             msgs.innerHTML = '<div id="gestor-wizard-vazio"><i class="fa-regular fa-comments"></i>Conversa limpa. Pode pedir de novo.</div>';
             msgs.classList.remove('has-msgs');
+            pintarPlano([], false);
         });
     });
 
@@ -252,6 +334,7 @@
                 if (m.role === 'assistant') addMsg('assistant', m.content_html || '', m.content || '');
                 else addMsg('user', '', m.content || '');
             });
+            pintarPlano(d.plano, d.aguardando_confirmacao);
         }).catch(function () {});
 
     try {
