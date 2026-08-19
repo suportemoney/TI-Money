@@ -32,3 +32,13 @@ def modulos_menu(request):
         ),
         'menu_integracoes_expandida': path.startswith('/integracoes/'),
     }
+
+
+def wizard_gestor(request):
+    """Allowlist do FAB de gestão (só user ids configurados)."""
+    from core.wizard import ids_wizard_gestor, usuario_pode_wizard
+
+    return {
+        'wizard_user_ids': ids_wizard_gestor(),
+        'wizard_gestor_ativo': usuario_pode_wizard(request.user),
+    }

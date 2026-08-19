@@ -1,0 +1,177 @@
+{# Wizard flutuante — só renderizado para users da allowlist #}
+<div id="gestor-wizard-root" class="fixed bottom-5 right-5 z-[45] font-sans">
+    <button type="button" id="gestor-wizard-fab" title="Wizard de gestão"
+            class="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-colors"
+            aria-expanded="false" aria-controls="gestor-wizard-panel">
+        <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+    </button>
+
+    <div id="gestor-wizard-panel" class="hidden absolute bottom-16 right-0 w-[22rem] sm:w-[26rem]">
+        <div class="max-h-[min(70vh,32rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div>
+                <p class="text-sm font-bold text-slate-900">Wizard de gestão</p>
+                <p class="text-[11px] text-slate-500">DeepSeek · vê a página atual</p>
+            </div>
+            <div class="flex items-center gap-1">
+                <button type="button" id="gestor-wizard-confirmar" title="Enviar confirmação"
+                        class="text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded-lg">Confirmar</button>
+                <button type="button" id="gestor-wizard-limpar" title="Nova conversa"
+                        class="text-[11px] font-bold text-slate-500 hover:bg-slate-100 px-2 py-1 rounded-lg">Limpar</button>
+            </div>
+        </div>
+        <div id="gestor-wizard-msgs" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm min-h-[12rem]"></div>
+        <form id="gestor-wizard-form" class="border-t border-slate-100 p-3 flex gap-2">
+            <textarea id="gestor-wizard-input" rows="2" maxlength="4000"
+                      placeholder="Ex.: nessa tabela, libere os inativos…"
+                      class="flex-1 text-sm p-2 border border-slate-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+            <button type="submit" id="gestor-wizard-enviar"
+                    class="self-end bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Enviar</button>
+        </form>
+        <p id="gestor-wizard-status" class="hidden px-3 pb-2 text-[11px] text-slate-400">Pensando…</p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const fab = document.getElementById('gestor-wizard-fab');
+    const panel = document.getElementById('gestor-wizard-panel');
+    const msgs = document.getElementById('gestor-wizard-msgs');
+    const form = document.getElementById('gestor-wizard-form');
+    const input = document.getElementById('gestor-wizard-input');
+    const statusEl = document.getElementById('gestor-wizard-status');
+    const btnLimpar = document.getElementById('gestor-wizard-limpar');
+    const btnConfirmar = document.getElementById('gestor-wizard-confirmar');
+    if (!fab || !panel || !form) return;
+
+    const urlChat = '{% url "wizard_chat" %}';
+    const urlLimpar = '{% url "wizard_chat_limpar" %}';
+    const csrf = '{{ csrf_token }}';
+
+    function csrfToken() {
+        var m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : csrf;
+    }
+
+    function snapshotPagina() {
+        const main = document.getElementById('main-content');
+        const pedacos = [];
+        if (main) {
+            main.querySelectorAll('table').forEach(function (t) {
+                const txt = (t.innerText || '').trim();
+                if (txt) pedacos.push(txt);
+            });
+        }
+        let ticketId = null;
+        const elTicket = document.querySelector('[data-ticket-id]');
+        if (elTicket) {
+            const n = parseInt(elTicket.getAttribute('data-ticket-id'), 10);
+            if (!isNaN(n)) ticketId = n;
+        }
+        return {
+            path: window.location.pathname,
+            query: window.location.search || '',
+            title: document.title || '',
+            tabelas: pedacos.join('\n\n').slice(0, 8000),
+            ticket_id: ticketId,
+        };
+    }
+
+    function addMsg(role, html, text) {
+        const wrap = document.createElement('div');
+        wrap.className = role === 'user'
+            ? 'ml-6 bg-blue-50 text-slate-800 rounded-xl px-3 py-2'
+            : 'mr-6 bg-slate-50 text-slate-800 rounded-xl px-3 py-2 border border-slate-100';
+        if (html) wrap.innerHTML = html;
+        else wrap.textContent = text || '';
+        msgs.appendChild(wrap);
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function setBusy(on) {
+        statusEl.classList.toggle('hidden', !on);
+        form.querySelector('button[type="submit"]').disabled = !!on;
+        input.disabled = !!on;
+    }
+
+    function abrir() {
+        panel.classList.remove('hidden');
+        fab.setAttribute('aria-expanded', 'true');
+        try { localStorage.setItem('gestor-wizard-open', '1'); } catch (e) {}
+        input.focus();
+    }
+
+    function fechar() {
+        panel.classList.add('hidden');
+        fab.setAttribute('aria-expanded', 'false');
+        try { localStorage.setItem('gestor-wizard-open', '0'); } catch (e) {}
+    }
+
+    fab.addEventListener('click', function () {
+        if (panel.classList.contains('hidden')) abrir();
+        else fechar();
+    });
+
+    function enviar(texto) {
+        const mensagem = (texto || '').trim();
+        if (!mensagem) return;
+        addMsg('user', '', mensagem);
+        input.value = '';
+        setBusy(true);
+        fetch(urlChat, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ message: mensagem, pagina: snapshotPagina() }),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+            if (!res.ok || !res.d.ok) {
+                addMsg('assistant', '', (res.d && res.d.error) || 'Falha no wizard.');
+                return;
+            }
+            addMsg('assistant', res.d.reply_html || '', res.d.reply || '');
+        }).catch(function () {
+            addMsg('assistant', '', 'Falha de rede ao falar com o wizard.');
+        }).finally(function () { setBusy(false); });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        enviar(input.value);
+    });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            enviar(input.value);
+        }
+    });
+    btnConfirmar.addEventListener('click', function () { enviar('confirma'); });
+    btnLimpar.addEventListener('click', function () {
+        fetch(urlLimpar, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        }).then(function () {
+            msgs.innerHTML = '';
+        });
+    });
+
+    fetch(urlChat, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            (d.messages || []).forEach(function (m) {
+                if (m.role === 'assistant') addMsg('assistant', m.content_html || '', m.content || '');
+                else addMsg('user', '', m.content || '');
+            });
+        }).catch(function () {});
+
+    try {
+        if (localStorage.getItem('gestor-wizard-open') === '1') abrir();
+    } catch (e) {}
+})();
+</script>

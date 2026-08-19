@@ -130,6 +130,10 @@
     <!-- Container global de modais HTMX -->
     <div id="modal-container"></div>
 
+    {% if wizard_gestor_ativo %}
+    {% include "core/_gestor_wizard.html" %}
+    {% endif %}
+
     <script>
         // Deve rodar após o <body> existir (script no <head> quebrava em páginas como history)
         document.body.addEventListener('htmx:configRequest', (event) => {

@@ -128,6 +128,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.modulos_menu',
+                'core.context_processors.wizard_gestor',
                 'helpdesk.context_processors.helpdesk_permissoes',
             ],
         },
@@ -258,6 +259,21 @@ LOGOUT_REDIRECT_URL = 'login'
 SISTEMA_URL_PUBLICA = os.environ.get('SISTEMA_URL_PUBLICA', 'https://ti.moneypromotora.com.br/').rstrip('/') + '/'
 # Token Bearer para API MCP (somente leitura). Sem token → endpoints retornam 503.
 MCP_API_TOKEN = (os.environ.get('MCP_API_TOKEN') or '').strip()
+
+# Wizard flutuante de gestão (DeepSeek + tools). Default: só o user id 2.
+def _ids_inteiros(nome: str, padrao: list[int]) -> list[int]:
+    bruto = os.environ.get(nome)
+    if not bruto:
+        return list(padrao)
+    ids = []
+    for item in bruto.split(','):
+        item = item.strip()
+        if item.isdigit():
+            ids.append(int(item))
+    return ids or list(padrao)
+
+
+GESTOR_WIZARD_USER_IDS = _ids_inteiros('GESTOR_WIZARD_USER_IDS', [2])
 
 # Media files
 MEDIA_URL = '/media/'

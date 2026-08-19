@@ -2,6 +2,7 @@ from django.urls import path
 from django.contrib.auth.views import LoginView, LogoutView
 from . import views
 from . import views_diag
+from . import wizard_views
 
 urlpatterns = [
     path('', views.dashboard_view, name='dashboard'),
@@ -32,4 +33,8 @@ urlpatterns = [
 
     # Auditoria global (somente ADMIN)
     path('auditoria/', views.AuditoriaListView.as_view(), name='auditoria'),
+
+    # Wizard flutuante de gestão (allowlist de user ids)
+    path('wizard/chat/', wizard_views.wizard_chat, name='wizard_chat'),
+    path('wizard/chat/limpar/', wizard_views.wizard_chat_limpar, name='wizard_chat_limpar'),
 ]
