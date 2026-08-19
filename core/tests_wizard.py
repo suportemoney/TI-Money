@@ -19,6 +19,9 @@ class WizardConfirmacaoTest(TestCase):
         self.assertTrue(mensagem_confirma_mutacao('confirma'))
         self.assertTrue(mensagem_confirma_mutacao('Sim'))
         self.assertTrue(mensagem_confirma_mutacao('pode executar'))
+        self.assertTrue(mensagem_confirma_mutacao('faça'))
+        self.assertTrue(mensagem_confirma_mutacao('Faça'))
+        self.assertTrue(mensagem_confirma_mutacao('ok, faz'))
         self.assertFalse(mensagem_confirma_mutacao('confirma se o ramal está livre'))
         self.assertFalse(mensagem_confirma_mutacao('libera os inativos'))
 

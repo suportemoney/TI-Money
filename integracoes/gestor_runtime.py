@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import unicodedata
 from typing import Any
 
 from helpdesk.assistente_services import (
@@ -62,9 +63,10 @@ SESSION_KEY = 'gestor_wizard_messages'
 MAX_HISTORICO = 40
 
 CONFIRM_EXATAS = frozenset({
-    'sim', 's', 'ok', 'okay', 'pode', 'pode executar', 'pode fazer',
-    'confirma', 'confirmado', 'confirmar', 'confirmo', 'faz', 'execute',
-    'executa', 'ok faz', 'ok, faz', 'yes', 'pode sim',
+    'sim', 's', 'ok', 'okay', 'pode', 'pode executar', 'pode fazer', 'pode faca',
+    'confirma', 'confirmado', 'confirmar', 'confirmo', 'faz', 'faca', 'faca isso',
+    'faz isso', 'execute', 'executa', 'ok faz', 'ok faca', 'yes', 'pode sim',
+    'pode ir', 'manda', 'vai fundo', 'pode confirmar',
 })
 
 TOOLS_QUE_EXIGEM_TICKET = frozenset({
@@ -111,9 +113,16 @@ GESTOR_TOOLS_MUTACAO = frozenset({
 GESTOR_TOOLS_SPEC = list(TOOLS_SPEC) + DISCADOR_TOOLS_SPEC
 
 
+def _sem_acento(texto: str) -> str:
+    nfd = unicodedata.normalize('NFD', texto or '')
+    return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+
+
 def mensagem_confirma_mutacao(texto: str) -> bool:
-    """True só para confirmação explícita e curta (sim / confirma / pode executar)."""
-    t = ' '.join((texto or '').strip().lower().split()).rstrip('.!')
+    """True só para confirmação explícita e curta (sim / confirma / faça)."""
+    t = ' '.join((texto or '').strip().lower().replace(',', ' ').split())
+    t = t.rstrip('.!')
+    t = _sem_acento(t)
     return t in CONFIRM_EXATAS
 
 
@@ -129,7 +138,7 @@ def _system_prompt_gestor() -> str:
         '- MUTAÇÃO (criar, excluir, liberar, alterar status, chip, alerta): '
         'primeiro descreva o plano (o quê, em quais linhas/IDs). '
         'NÃO chame a tool de mutação até a última mensagem do gestor ser '
-        'confirmação explícita (sim, confirma, pode executar).\n'
+        'confirmação explícita (sim, confirma, faça, pode executar).\n'
         '- Consultas (listar, consultar) podem rodar sem confirmação.\n'
         '- Tools de chamado só funcionam se houver ticket_id no contexto.\n'
         '- Você NÃO é o Assistente do helpdesk: não precisa mandar mensagem '
@@ -491,6 +500,14 @@ def processar_gestor(
     ]
     if (anexos_texto or '').strip():
         messages.append({'role': 'system', 'content': anexos_texto.strip()})
+    if ctx['confirma']:
+        messages.append({
+            'role': 'system',
+            'content': (
+                'O gestor CONFIRMOU nesta mensagem (sim/faça/confirma). '
+                'Execute agora as mutações do plano já apresentado, sem pedir de novo.'
+            ),
+        })
     for item in (historico or [])[-MAX_HISTORICO:]:
         role = item.get('role')
         content = (item.get('content') or '').strip()
