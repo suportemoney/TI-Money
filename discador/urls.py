@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.JoyTecDashboardView.as_view(), name='joytec'),
     path('joytec/', views.JoyTecDashboardView.as_view(), name='joytec_alias'),
 
+    path('acessos/status-moneyconsig/', views.acessos_status_moneyconsig, name='acessos_status_moneyconsig'),
     path('acessos/create/', views.AcessoCreateView.as_view(), name='acesso_create'),
     path('acessos/<int:pk>/update/', views.AcessoUpdateView.as_view(), name='acesso_update'),
     path('acessos/<int:pk>/delete/', views.AcessoDeleteView.as_view(), name='acesso_delete'),

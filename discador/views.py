@@ -1,11 +1,13 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
+from django.views.decorators.http import require_GET
 from django.views.generic import CreateView, DeleteView, TemplateView, UpdateView
 
 from core.audit import logs_do_modulo
-from core.permissions import MODULO_DISCADOR, ModuloObrigatorioMixin
+from core.permissions import MODULO_DISCADOR, ModuloObrigatorioMixin, requer_modulo
 from discador.audit import (
     log_acesso_atualizado,
     log_acesso_criado,
@@ -34,6 +36,7 @@ from discador.services import (
     excluir_campanha,
     excluir_ramal,
     get_or_create_joytec,
+    ids_acessos_inativos_moneyconsig,
     kpis_licencas,
 )
 
@@ -98,6 +101,21 @@ class JoyTecDashboardView(_DiscadorMixin, TemplateView):
         context['audit_logs'] = logs_do_modulo(MODULO_DISCADOR, limite=40)
         context['audit_titulo'] = 'Registro de auditoria — Discadores / JoyTec'
         return context
+
+
+@require_GET
+@requer_modulo(MODULO_DISCADOR)
+def acessos_status_moneyconsig(request):
+    """JSON com IDs de acessos cujo titular está inativo no MoneyConsig."""
+    discador = get_or_create_joytec()
+    acessos = (
+        AcessoDiscador.objects.filter(discador=discador)
+        .select_related('titular_user')
+    )
+    return JsonResponse({
+        'ok': True,
+        'inativos': ids_acessos_inativos_moneyconsig(acessos),
+    })
 
 
 # ---------- Acessos ----------

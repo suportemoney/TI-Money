@@ -291,7 +291,7 @@
                     <tbody class="divide-y divide-slate-100">
                         {% for acesso in acessos %}
                         <tr class="hover:bg-blue-50 transition-colors">
-                            <td class="px-6 py-4 font-bold text-slate-900">{{ acesso.nome_exibicao }}</td>
+                            <td class="px-6 py-4 font-bold text-slate-900" data-acesso-id="{{ acesso.pk }}">{{ acesso.nome_exibicao }}</td>
                             <td class="px-6 py-4 text-slate-600">{{ acesso.login_discador }}</td>
                             <td class="px-6 py-4 font-mono text-slate-800">{{ acesso.ramal.numero }}</td>
                             <td class="px-6 py-4 text-slate-600">{{ acesso.campanha.nome }}</td>
@@ -738,6 +738,29 @@
     });
 
     showTab(tab);
+
+    // Pinta de vermelho titulares inativos no MoneyConsig (não bloqueia a tela)
+    (function pintarNomesInativosMoneyconsig() {
+        const cells = document.querySelectorAll('[data-acesso-id]');
+        if (!cells.length) return;
+        fetch('{% url "discador:acessos_status_moneyconsig" %}', {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin',
+        }).then(function (resp) {
+            return resp.json();
+        }).then(function (data) {
+            const ids = (data && data.inativos) || [];
+            ids.forEach(function (id) {
+                const el = document.querySelector('[data-acesso-id="' + id + '"]');
+                if (!el) return;
+                el.classList.remove('text-slate-900');
+                el.classList.add('text-red-600');
+                el.setAttribute('title', 'Inativo no MoneyConsig');
+            });
+        }).catch(function () {
+            // Falha silenciosa: ativo ou não encontrado não altera a tela
+        });
+    })();
 })();
 </script>
 {% endblock %}

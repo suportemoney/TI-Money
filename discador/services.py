@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count
@@ -621,3 +622,57 @@ def listar_ramais_api(
         'count': len(itens),
         'results': itens,
     }
+
+
+CACHE_INATIVO_TTL = 300
+CACHE_INATIVO_PREFIX = 'discador:mc-inativo:v1:'
+
+
+def ids_acessos_inativos_moneyconsig(acessos) -> list[int]:
+    """IDs de acessos cujo titular está inativo no MoneyConsig.
+
+    Não encontrado ou ativo não entram na lista. Falha de API não pinta o nome.
+    """
+    from integracoes.moneyconsig_client import (
+        moneyconsig_disponivel,
+        normalizar_nome_pessoa,
+        status_inativos_por_nome,
+    )
+
+    if not moneyconsig_disponivel():
+        return []
+
+    pares: list[tuple[int, str, str]] = []
+    for acesso in acessos:
+        nome = (getattr(acesso, 'nome_exibicao', None) or '').strip()
+        chave = normalizar_nome_pessoa(nome)
+        if not chave:
+            continue
+        pares.append((acesso.pk, nome, chave))
+
+    if not pares:
+        return []
+
+    inativos: list[int] = []
+    pendentes: list[tuple[int, str, str]] = []
+    for pk, nome, chave in pares:
+        cached = cache.get(CACHE_INATIVO_PREFIX + chave)
+        if cached is True:
+            inativos.append(pk)
+        elif cached is False:
+            continue
+        else:
+            pendentes.append((pk, nome, chave))
+
+    if not pendentes:
+        return inativos
+
+    status = status_inativos_por_nome([nome for _, nome, _ in pendentes])
+    for pk, _nome, chave in pendentes:
+        if chave not in status:
+            continue
+        eh_inativo = bool(status[chave])
+        cache.set(CACHE_INATIVO_PREFIX + chave, eh_inativo, CACHE_INATIVO_TTL)
+        if eh_inativo:
+            inativos.append(pk)
+    return inativos
