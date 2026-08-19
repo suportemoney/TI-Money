@@ -279,12 +279,24 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Nome</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Login</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Ramal</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Campanha</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Tipo</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Status</th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Nome <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Login <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="number" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Ramal <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Campanha <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Tipo <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Status <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
                             <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs text-right">Ações</th>
                         </tr>
                     </thead>
@@ -338,9 +350,15 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Número</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Status</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Consome licença</th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="number" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Número <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Status <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Consome licença <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
                             <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs text-right">Ações</th>
                         </tr>
                     </thead>
@@ -391,8 +409,12 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Nome</th>
-                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Status</th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Nome <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
+                            <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs cursor-pointer hover:text-slate-700 select-none group" data-sort-type="text" onclick="ordenarTabelaDiscador(this)">
+                                <span class="flex items-center gap-1">Status <span class="sort-icon text-[9px] text-slate-400 group-hover:text-slate-600">↕</span></span>
+                            </th>
                             <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs text-right">Ações</th>
                         </tr>
                     </thead>
@@ -738,6 +760,52 @@
     });
 
     showTab(tab);
+
+    // Ordena linhas da tabela pelo cabeçalho (A–Z / menor–maior; 2º clique inverte)
+    window.ordenarTabelaDiscador = function (th) {
+        const table = th.closest('table');
+        const tbody = table && table.querySelector('tbody');
+        if (!tbody) return;
+        const headers = Array.from(th.parentNode.children);
+        const colIndex = headers.indexOf(th);
+        const sortType = th.getAttribute('data-sort-type') || 'text';
+        const rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+            const first = row.querySelector('td');
+            return first && !first.hasAttribute('colspan');
+        });
+        if (rows.length < 2) return;
+
+        const asc = th.getAttribute('data-sort-dir') !== 'asc';
+        table.querySelectorAll('thead th').forEach(function (header) {
+            header.removeAttribute('data-sort-dir');
+            const icon = header.querySelector('.sort-icon');
+            if (icon) icon.textContent = '↕';
+        });
+        th.setAttribute('data-sort-dir', asc ? 'asc' : 'desc');
+        const icon = th.querySelector('.sort-icon');
+        if (icon) icon.textContent = asc ? '▲' : '▼';
+
+        function valorCelula(row) {
+            const cell = row.children[colIndex];
+            return ((cell && cell.textContent) || '').trim().replace(/^—$/, '');
+        }
+
+        rows.sort(function (a, b) {
+            const valA = valorCelula(a);
+            const valB = valorCelula(b);
+            if (valA === valB) return 0;
+            if (!valA) return 1;
+            if (!valB) return -1;
+            if (sortType === 'number') {
+                const numA = parseFloat(valA.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+                const numB = parseFloat(valB.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+                return asc ? (numA - numB) : (numB - numA);
+            }
+            const cmp = valA.localeCompare(valB, 'pt-BR', { numeric: true, sensitivity: 'base' });
+            return asc ? cmp : -cmp;
+        });
+        rows.forEach(function (row) { tbody.appendChild(row); });
+    };
 
     // Pinta de vermelho titulares inativos no MoneyConsig (não bloqueia a tela)
     (function pintarNomesInativosMoneyconsig() {
