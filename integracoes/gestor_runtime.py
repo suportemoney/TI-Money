@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import unicodedata
 from typing import Any
 
@@ -66,7 +67,12 @@ CONFIRM_EXATAS = frozenset({
     'sim', 's', 'ok', 'okay', 'pode', 'pode executar', 'pode fazer', 'pode faca',
     'confirma', 'confirmado', 'confirmar', 'confirmo', 'faz', 'faca', 'faca isso',
     'faz isso', 'execute', 'executa', 'ok faz', 'ok faca', 'yes', 'pode sim',
-    'pode ir', 'manda', 'vai fundo', 'pode confirmar',
+    'pode ir', 'manda', 'vai fundo', 'pode confirmar', 'confirmado pode fazer',
+})
+
+RECUSA_EXATAS = frozenset({
+    'nao', 'n', 'recusar', 'recuso', 'cancela', 'cancelar', 'nao confirma',
+    'nao executar', 'nao quero', 'descarta', 'descartar',
 })
 
 TOOLS_QUE_EXIGEM_TICKET = frozenset({
@@ -120,10 +126,36 @@ def _sem_acento(texto: str) -> str:
 
 def mensagem_confirma_mutacao(texto: str) -> bool:
     """True só para confirmação explícita e curta (sim / confirma / faça)."""
+    return _normaliza_frase(texto) in CONFIRM_EXATAS
+
+
+def mensagem_recusa_plano(texto: str) -> bool:
+    """True só para recusa explícita e curta (recusar / cancelar)."""
+    return _normaliza_frase(texto) in RECUSA_EXATAS
+
+
+def _normaliza_frase(texto: str) -> str:
     t = ' '.join((texto or '').strip().lower().replace(',', ' ').split())
     t = t.rstrip('.!')
-    t = _sem_acento(t)
-    return t in CONFIRM_EXATAS
+    return _sem_acento(t)
+
+
+def reply_pede_confirmacao(texto: str) -> bool:
+    """True se a fala parece um plano aguardando Confirmar na interface."""
+    bruto = texto or ''
+    t = _sem_acento(bruto.lower())
+    pistas_fortes = (
+        'confirme na interface',
+        'preciso da sua confirmacao',
+        'clique em confirmar',
+        'gestor clica em confirmar',
+    )
+    if any(p in t for p in pistas_fortes):
+        return True
+    tem_tabela = '|' in bruto and bool(re.search(r'\|?\s*:?-{3,}', bruto))
+    if not tem_tabela:
+        return False
+    return any(p in t for p in ('confirma', 'mutacao', 'plano', 'alteracao'))
 
 
 def _system_prompt_gestor() -> str:
@@ -493,10 +525,11 @@ def processar_gestor(
     except (TypeError, ValueError):
         ticket_id = None
 
+    recusou = mensagem_recusa_plano(mensagem)
     ctx = {
         'ticket_id': ticket_id,
         'actor': user,
-        'confirma': mensagem_confirma_mutacao(mensagem),
+        'confirma': mensagem_confirma_mutacao(mensagem) and not recusou,
         'mutacoes': [],
         'plano': [],
     }
@@ -507,11 +540,19 @@ def processar_gestor(
     ]
     if (anexos_texto or '').strip():
         messages.append({'role': 'system', 'content': anexos_texto.strip()})
-    if ctx['confirma']:
+    if recusou:
         messages.append({
             'role': 'system',
             'content': (
-                'O gestor CONFIRMOU nesta mensagem (sim/faça/confirma). '
+                'O gestor RECUSOU o plano nesta mensagem. '
+                'Não execute mutações. Confirme que o plano foi cancelado.'
+            ),
+        })
+    elif ctx['confirma']:
+        messages.append({
+            'role': 'system',
+            'content': (
+                'O gestor CONFIRMOU nesta mensagem (botão Confirmar / sim / faça). '
                 'Execute agora as mutações do plano já apresentado, sem pedir de novo.'
             ),
         })
@@ -562,10 +603,13 @@ def processar_gestor(
 
     plano = ctx.get('plano') or []
     mutacoes = ctx.get('mutacoes') or []
+    aguardando = False
+    if not recusou and not mutacoes:
+        aguardando = bool(plano) or reply_pede_confirmacao(reply)
     return {
         'reply': reply,
         'mutacoes': mutacoes,
         'ticket_id': ticket_id,
         'plano': plano,
-        'aguardando_confirmacao': bool(plano) and not mutacoes,
+        'aguardando_confirmacao': aguardando,
     }

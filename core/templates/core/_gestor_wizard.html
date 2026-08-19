@@ -32,7 +32,10 @@
             </div>
             <div id="gestor-wizard-barra">
                 <span id="gestor-wizard-barra-txt">Alterações pendentes</span>
-                <button type="button" class="gestor-wizard-cta" id="gestor-wizard-barra-btn">Confirmar e executar</button>
+                <div class="gestor-wizard-acoes">
+                    <button type="button" class="gestor-wizard-recusar" id="gestor-wizard-barra-recusar">Recusar</button>
+                    <button type="button" class="gestor-wizard-cta" id="gestor-wizard-barra-btn">Confirmar</button>
+                </div>
             </div>
             <form id="gestor-wizard-form">
                 <textarea id="gestor-wizard-input" rows="3" maxlength="4000"
@@ -68,6 +71,7 @@
     const barra = document.getElementById('gestor-wizard-barra');
     const barraTxt = document.getElementById('gestor-wizard-barra-txt');
     const barraBtn = document.getElementById('gestor-wizard-barra-btn');
+    const barraRecusar = document.getElementById('gestor-wizard-barra-recusar');
     const fileInput = document.getElementById('gestor-wizard-file');
     const btnAnexar = document.getElementById('gestor-wizard-anexar');
     const filesEl = document.getElementById('gestor-wizard-files');
@@ -140,6 +144,14 @@
                 acao: 'Corrigir nome',
             };
         }
+        if (tool === 'atualizar_contrato_discador') {
+            return {
+                ramal: 'Licenças',
+                de: '—',
+                para: args.licencas_contratadas != null ? String(args.licencas_contratadas) : '—',
+                acao: 'Atualizar contrato',
+            };
+        }
         let json = '';
         try { json = JSON.stringify(args); } catch (e) { json = ''; }
         if (json.length > 72) json = json.slice(0, 69) + '…';
@@ -153,7 +165,7 @@
 
     function pintarPlano(plano, aguardando) {
         const lista = Array.isArray(plano) ? plano : [];
-        const show = !!(aguardando && lista.length);
+        const show = !!aguardando;
         let card = msgs.querySelector('.gestor-wizard-plano-card');
         if (!show) {
             if (card) card.remove();
@@ -162,36 +174,45 @@
         }
         msgs.classList.add('has-msgs');
         const n = lista.length;
-        const rotulo = n === 1 ? '1 alteração' : n + ' alterações';
+        const rotulo = n === 1 ? '1 alteração' : (n ? n + ' alterações' : 'Plano pendente');
         if (!card) {
             card = document.createElement('div');
             card.className = 'gestor-wizard-plano-card';
             msgs.appendChild(card);
         }
-        const linhas = lista.map(function (item) {
-            const r = resumoPlanoItem(item);
-            return '<tr><td>' + escHtml(r.ramal) + '</td><td>' + escHtml(r.de) +
-                '</td><td>' + escHtml(r.para) + '</td><td>' + escHtml(r.acao) + '</td></tr>';
-        }).join('');
+        let tabela = '';
+        if (n) {
+            const linhas = lista.map(function (item) {
+                const r = resumoPlanoItem(item);
+                return '<tr><td>' + escHtml(r.ramal) + '</td><td>' + escHtml(r.de) +
+                    '</td><td>' + escHtml(r.para) + '</td><td>' + escHtml(r.acao) + '</td></tr>';
+            }).join('');
+            tabela = '<div class="memoria-md-table-wrap"><table class="memoria-md-table">' +
+                '<thead><tr><th>Item</th><th>De</th><th>Para</th><th>Ação</th></tr></thead>' +
+                '<tbody>' + linhas + '</tbody></table></div>';
+        }
+        const titulo = n ? 'Plano (' + rotulo + ')' : 'Confirmar ou recusar este plano';
         card.innerHTML =
-            '<h3>Plano (' + rotulo + ')</h3>' +
-            '<div class="memoria-md-table-wrap"><table class="memoria-md-table">' +
-            '<thead><tr><th>Ramal</th><th>De</th><th>Para</th><th>Ação</th></tr></thead>' +
-            '<tbody>' + linhas + '</tbody></table></div>' +
-            '<button type="button" class="gestor-wizard-cta" data-confirmar="1">Confirmar e executar</button>';
-        barraTxt.textContent = rotulo + ' pronta' + (n === 1 ? '' : 's') + ' para executar';
+            '<h3>' + titulo + '</h3>' + tabela +
+            '<div class="gestor-wizard-acoes">' +
+            '<button type="button" class="gestor-wizard-recusar" data-recusar="1">Recusar</button>' +
+            '<button type="button" class="gestor-wizard-cta" data-confirmar="1">Confirmar</button>' +
+            '</div>';
+        barraTxt.textContent = n ? (rotulo + ' pronta' + (n === 1 ? '' : 's') + ' para executar') : 'Confirme ou recuse o plano';
         barra.classList.add('is-on');
         msgs.scrollTop = msgs.scrollHeight;
     }
 
-    function confirmarPlano() { enviar('confirma'); }
+    function confirmarPlano() { enviar('confirma', 'Confirmei o plano'); }
+    function recusarPlano() { enviar('recusar', 'Recusei o plano'); }
 
     function setBusy(on) {
         statusEl.classList.toggle('is-on', !!on);
         form.querySelector('button[type="submit"]').disabled = !!on;
         input.disabled = !!on;
         if (barraBtn) barraBtn.disabled = !!on;
-        msgs.querySelectorAll('.gestor-wizard-cta').forEach(function (b) { b.disabled = !!on; });
+        if (barraRecusar) barraRecusar.disabled = !!on;
+        msgs.querySelectorAll('.gestor-wizard-cta, .gestor-wizard-recusar').forEach(function (b) { b.disabled = !!on; });
     }
 
     function abrir() {
@@ -261,12 +282,12 @@
         pintarArquivos();
     });
 
-    function enviar(texto) {
+    function enviar(texto, rotuloVisivel) {
         const mensagem = (texto || '').trim();
         const pendentes = arquivosPendentes.slice();
         if (!mensagem && !pendentes.length) return;
-        const rotulo = mensagem || ('📎 ' + pendentes.map(function (f) { return f.name; }).join(', '));
-        addMsg('user', '', rotulo + (mensagem && pendentes.length ? '\n📎 ' + pendentes.map(function (f) { return f.name; }).join(', ') : ''));
+        const rotulo = rotuloVisivel || mensagem || ('📎 ' + pendentes.map(function (f) { return f.name; }).join(', '));
+        addMsg('user', '', rotulo + (!rotuloVisivel && mensagem && pendentes.length ? '\n📎 ' + pendentes.map(function (f) { return f.name; }).join(', ') : ''));
         input.value = '';
         arquivosPendentes = [];
         pintarArquivos();
@@ -311,9 +332,10 @@
         }
     });
     barraBtn.addEventListener('click', confirmarPlano);
+    if (barraRecusar) barraRecusar.addEventListener('click', recusarPlano);
     msgs.addEventListener('click', function (e) {
-        const btn = e.target.closest('[data-confirmar]');
-        if (btn) confirmarPlano();
+        if (e.target.closest('[data-confirmar]')) confirmarPlano();
+        else if (e.target.closest('[data-recusar]')) recusarPlano();
     });
     btnLimpar.addEventListener('click', function () {
         fetch(urlLimpar, {

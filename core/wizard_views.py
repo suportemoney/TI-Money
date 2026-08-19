@@ -18,6 +18,7 @@ from integracoes.wizard_anexos import extrair_anexos_wizard
 logger = logging.getLogger(__name__)
 
 SESSION_PLANO = 'gestor_wizard_plano'
+SESSION_AGUARDANDO = 'gestor_wizard_aguardando'
 
 
 def _json_body(request) -> dict:
@@ -57,7 +58,10 @@ def wizard_chat(request):
             'ok': True,
             'messages': payload,
             'plano': list(request.session.get(SESSION_PLANO) or []),
-            'aguardando_confirmacao': bool(request.session.get(SESSION_PLANO)),
+            'aguardando_confirmacao': bool(
+                request.session.get(SESSION_AGUARDANDO)
+                or request.session.get(SESSION_PLANO)
+            ),
         })
 
     body = _json_body(request)
@@ -100,10 +104,9 @@ def wizard_chat(request):
     historico.append({'role': 'assistant', 'content': reply})
     request.session[SESSION_KEY] = historico[-MAX_HISTORICO:]
     plano = resultado.get('plano') or []
-    if resultado.get('aguardando_confirmacao'):
-        request.session[SESSION_PLANO] = plano
-    else:
-        request.session[SESSION_PLANO] = []
+    aguardando = bool(resultado.get('aguardando_confirmacao'))
+    request.session[SESSION_PLANO] = plano if aguardando else []
+    request.session[SESSION_AGUARDANDO] = aguardando
     request.session.modified = True
 
     return JsonResponse({
@@ -112,7 +115,7 @@ def wizard_chat(request):
         'reply_html': render_markdown_leve(reply),
         'mutacoes': resultado.get('mutacoes') or [],
         'plano': plano,
-        'aguardando_confirmacao': bool(resultado.get('aguardando_confirmacao')),
+        'aguardando_confirmacao': aguardando,
     })
 
 
@@ -125,5 +128,6 @@ def wizard_chat_limpar(request):
         return recusa
     request.session[SESSION_KEY] = []
     request.session[SESSION_PLANO] = []
+    request.session[SESSION_AGUARDANDO] = False
     request.session.modified = True
     return JsonResponse({'ok': True, 'messages': []})

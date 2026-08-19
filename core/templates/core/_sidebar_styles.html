@@ -423,20 +423,34 @@
         color: #065f46;
     }
     .gestor-wizard-plano-card .memoria-md-table-wrap { margin: 0 0 0.7rem; }
-    .gestor-wizard-cta {
-        display: block;
-        width: 100%;
+    .gestor-wizard-acoes {
+        display: flex;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+    .gestor-wizard-cta,
+    .gestor-wizard-recusar {
+        flex: 1;
         border: 0;
         cursor: pointer;
-        background: #059669;
-        color: #fff;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         font-weight: 700;
         padding: 0.7rem 1rem;
         border-radius: 0.7rem;
     }
+    .gestor-wizard-cta {
+        background: #059669;
+        color: #fff;
+    }
     .gestor-wizard-cta:hover { background: #047857; }
-    .gestor-wizard-cta:disabled { opacity: 0.55; cursor: not-allowed; }
+    .gestor-wizard-recusar {
+        background: #fff;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .gestor-wizard-recusar:hover { background: #fef2f2; }
+    .gestor-wizard-cta:disabled,
+    .gestor-wizard-recusar:disabled { opacity: 0.55; cursor: not-allowed; }
     #gestor-wizard-barra {
         display: none;
         align-items: center;
@@ -456,10 +470,12 @@
         color: #065f46;
         min-width: 0;
     }
-    #gestor-wizard-barra .gestor-wizard-cta {
+    #gestor-wizard-barra .gestor-wizard-acoes { flex: 0 0 auto; }
+    #gestor-wizard-barra .gestor-wizard-cta,
+    #gestor-wizard-barra .gestor-wizard-recusar {
         width: auto;
-        flex-shrink: 0;
-        padding: 0.55rem 0.9rem;
+        flex: 0 0 auto;
+        padding: 0.5rem 0.85rem;
         font-size: 0.82rem;
     }
     #gestor-wizard-form {

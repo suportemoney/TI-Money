@@ -9,7 +9,9 @@ from core.wizard import usuario_pode_wizard
 from integracoes.gestor_runtime import (
     executar_tool_gestor,
     mensagem_confirma_mutacao,
+    mensagem_recusa_plano,
     montar_contexto_pagina,
+    reply_pede_confirmacao,
 )
 from integracoes.markdown_safe import render_markdown_leve
 from integracoes.wizard_anexos import extrair_anexos_wizard
@@ -23,8 +25,25 @@ class WizardConfirmacaoTest(TestCase):
         self.assertTrue(mensagem_confirma_mutacao('faça'))
         self.assertTrue(mensagem_confirma_mutacao('Faça'))
         self.assertTrue(mensagem_confirma_mutacao('ok, faz'))
+        self.assertTrue(mensagem_confirma_mutacao('confirmado pode fazer!'))
         self.assertFalse(mensagem_confirma_mutacao('confirma se o ramal está livre'))
         self.assertFalse(mensagem_confirma_mutacao('libera os inativos'))
+
+    def test_recusa_frases_explicidas(self):
+        self.assertTrue(mensagem_recusa_plano('recusar'))
+        self.assertTrue(mensagem_recusa_plano('Cancelar'))
+        self.assertFalse(mensagem_recusa_plano('não libere ainda, só consulta'))
+
+    def test_reply_com_tabela_pede_confirmacao(self):
+        texto = (
+            'Como é uma mutação, preciso da sua confirmação. Aqui está o plano:\n'
+            '| Item | De | Para | Ação |\n'
+            '|---|---|---|---|\n'
+            '| Licenças | 38 | 41 | Atualizar contrato |\n'
+            'Confirme na interface para eu executar.'
+        )
+        self.assertTrue(reply_pede_confirmacao(texto))
+        self.assertFalse(reply_pede_confirmacao('Ramal 1001 está livre.'))
 
     def test_snapshot_entra_no_contexto(self):
         texto = montar_contexto_pagina({
@@ -145,6 +164,23 @@ class WizardGateHttpTest(TestCase):
         self.assertTrue(payload.get('aguardando_confirmacao'))
         self.assertEqual(payload.get('plano'), plano)
 
+    @patch('core.wizard_views.processar_gestor')
+    def test_post_aguardando_sem_plano_estruturado(self, mock_proc):
+        mock_proc.return_value = {
+            'reply': 'Confirme na interface.',
+            'mutacoes': [],
+            'plano': [],
+            'aguardando_confirmacao': True,
+        }
+        self.client.force_login(self.gestor)
+        with override_settings(GESTOR_WIZARD_USER_IDS=[self.gestor.pk]):
+            resp = self.client.post(
+                reverse('wizard_chat'),
+                data=json.dumps({'message': 'adicione 3 licenças', 'pagina': {}}),
+                content_type='application/json',
+            )
+        self.assertTrue(resp.json().get('aguardando_confirmacao'))
+
     def test_fab_so_para_allowlist(self):
         with override_settings(GESTOR_WIZARD_USER_IDS=[self.gestor.pk]):
             self.client.force_login(self.gestor)
@@ -152,6 +188,7 @@ class WizardGateHttpTest(TestCase):
             self.client.force_login(self.outro)
             html_nao = self.client.get(reverse('dashboard')).content.decode()
         self.assertIn('id="gestor-wizard-root"', html_ok)
+        self.assertIn('gestor-wizard-recusar', html_ok)
         self.assertNotIn('{# Wizard', html_ok)
         self.assertNotIn('gestor-wizard-root', html_nao)
 
