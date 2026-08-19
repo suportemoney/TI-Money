@@ -340,6 +340,7 @@
         line-height: 1.45;
         color: #1e293b;
         word-break: break-word;
+        white-space: pre-wrap;
     }
     .gestor-wizard-msg-user {
         align-self: flex-end;
@@ -384,10 +385,58 @@
         justify-content: space-between;
         gap: 0.75rem;
     }
+    #gestor-wizard-form-left {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        min-width: 0;
+        flex: 1;
+    }
+    #gestor-wizard-anexar {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.45rem 0.7rem;
+        border-radius: 0.65rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #gestor-wizard-anexar:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+    #gestor-wizard-files {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+    .gestor-wizard-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: #eff6ff;
+        color: #1e40af;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.45rem 0.25rem 0.55rem;
+        border-radius: 999px;
+        max-width: 100%;
+    }
+    .gestor-wizard-chip button {
+        border: 0;
+        background: transparent;
+        color: #64748b;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        padding: 0 0.15rem;
+    }
     #gestor-wizard-hint {
         margin: 0;
         font-size: 0.72rem;
         color: #94a3b8;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     #gestor-wizard-enviar {
         border: 0;

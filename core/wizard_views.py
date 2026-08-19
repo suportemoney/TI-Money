@@ -13,6 +13,7 @@ from core.wizard import usuario_pode_wizard
 from integracoes.gestor_runtime import SESSION_KEY, MAX_HISTORICO, processar_gestor
 from integracoes.llm import LlmError
 from integracoes.markdown_safe import render_markdown_leve
+from integracoes.wizard_anexos import extrair_anexos_wizard
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +54,25 @@ def wizard_chat(request):
         return JsonResponse({'ok': True, 'messages': payload})
 
     body = _json_body(request)
+    anexos = body.get('anexos') if isinstance(body.get('anexos'), list) else []
     mensagem = (body.get('message') or '').strip()
     if not mensagem:
-        return JsonResponse({'ok': False, 'error': 'Mensagem vazia.'}, status=400)
+        if anexos:
+            mensagem = 'Analise os arquivos anexados.'
+        else:
+            return JsonResponse({'ok': False, 'error': 'Mensagem vazia.'}, status=400)
 
     pagina = body.get('pagina') if isinstance(body.get('pagina'), dict) else {}
     historico = list(request.session.get(SESSION_KEY) or [])
+    anexos_texto = extrair_anexos_wizard(anexos)
+    nomes = [
+        (item.get('nome') or 'arquivo')
+        for item in anexos[:4]
+        if isinstance(item, dict)
+    ]
+    texto_historico = mensagem
+    if nomes:
+        texto_historico = f'{mensagem}\n📎 {", ".join(nomes)}'
 
     try:
         resultado = processar_gestor(
@@ -66,6 +80,7 @@ def wizard_chat(request):
             mensagem=mensagem,
             historico=historico,
             pagina=pagina,
+            anexos_texto=anexos_texto,
         )
     except LlmError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=502)
@@ -74,7 +89,7 @@ def wizard_chat(request):
         return JsonResponse({'ok': False, 'error': 'Erro ao processar o wizard.'}, status=500)
 
     reply = resultado.get('reply') or ''
-    historico.append({'role': 'user', 'content': mensagem})
+    historico.append({'role': 'user', 'content': texto_historico})
     historico.append({'role': 'assistant', 'content': reply})
     request.session[SESSION_KEY] = historico[-MAX_HISTORICO:]
     request.session.modified = True

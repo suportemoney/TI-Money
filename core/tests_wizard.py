@@ -11,6 +11,7 @@ from integracoes.gestor_runtime import (
     mensagem_confirma_mutacao,
     montar_contexto_pagina,
 )
+from integracoes.wizard_anexos import extrair_anexos_wizard
 
 
 class WizardConfirmacaoTest(TestCase):
@@ -40,6 +41,14 @@ class WizardConfirmacaoTest(TestCase):
         ))
         self.assertTrue(out.get('precisa_confirmacao'))
         self.assertFalse(out.get('ok'))
+        self.assertEqual(ctx['mutacoes'], [])
+
+    def test_criar_ramal_sem_confirma_nao_executa(self):
+        ctx = {'confirma': False, 'ticket_id': None, 'actor': None, 'mutacoes': []}
+        out = json.loads(executar_tool_gestor(
+            'criar_ramal_discador', {'numero': '1001'}, ctx,
+        ))
+        self.assertTrue(out.get('precisa_confirmacao'))
         self.assertEqual(ctx['mutacoes'], [])
 
 
@@ -106,3 +115,46 @@ class WizardGateHttpTest(TestCase):
         self.assertIn('id="gestor-wizard-root"', html_ok)
         self.assertNotIn('{# Wizard', html_ok)
         self.assertNotIn('gestor-wizard-root', html_nao)
+
+
+class WizardAnexosTest(TestCase):
+    def test_csv_entra_no_texto(self):
+        import base64
+        bruto = 'nome;login\nAgatha Roberta;agatha.r\n'.encode('utf-8')
+        texto = extrair_anexos_wizard([{
+            'nome': 'lista.csv',
+            'mime': 'text/csv',
+            'data_base64': base64.b64encode(bruto).decode(),
+        }])
+        self.assertIn('Agatha Roberta', texto)
+        self.assertIn('lista.csv', texto)
+
+    @patch('core.wizard_views.processar_gestor')
+    def test_post_envia_anexos_texto(self, mock_proc):
+        import base64
+        mock_proc.return_value = {'reply': 'vi o csv', 'mutacoes': []}
+        gestor = CustomUser.objects.create_user(
+            username='gestor.anexo',
+            password='x',
+            role=CustomUser.RoleChoices.IT_USER,
+        )
+        bruto = 'ramal,titular\n1001,Ana\n'.encode('utf-8')
+        self.client.force_login(gestor)
+        with override_settings(GESTOR_WIZARD_USER_IDS=[gestor.pk]):
+            resp = self.client.post(
+                reverse('wizard_chat'),
+                data=json.dumps({
+                    'message': 'cadastre esses ramais',
+                    'pagina': {'path': '/discador/'},
+                    'anexos': [{
+                        'nome': 'ramais.csv',
+                        'mime': 'text/csv',
+                        'data_base64': base64.b64encode(bruto).decode(),
+                    }],
+                }),
+                content_type='application/json',
+            )
+        self.assertEqual(resp.status_code, 200)
+        kwargs = mock_proc.call_args.kwargs
+        self.assertIn('Ana', kwargs['anexos_texto'])
+        self.assertIn('ramais.csv', kwargs['anexos_texto'])

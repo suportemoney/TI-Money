@@ -27,14 +27,23 @@
             <div id="gestor-wizard-msgs">
                 <div id="gestor-wizard-vazio">
                     <i class="fa-regular fa-comments"></i>
-                    Descreva o que fazer nesta tela. Consulte à vontade; alteração só depois de Confirmar.
+                    Descreva o que fazer nesta tela ou anexe print, PDF, CSV ou XLSX.
+                    Alteração no discador só depois de Confirmar.
                 </div>
             </div>
             <form id="gestor-wizard-form">
                 <textarea id="gestor-wizard-input" rows="3" maxlength="4000"
                           placeholder="Ex.: nessa tabela, libere os acessos inativos…"></textarea>
+                <div id="gestor-wizard-files" hidden></div>
                 <div id="gestor-wizard-form-row">
-                    <p id="gestor-wizard-hint">Enter envia · Shift+Enter quebra linha</p>
+                    <div id="gestor-wizard-form-left">
+                        <input type="file" id="gestor-wizard-file" multiple hidden
+                               accept=".csv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,image/*,application/pdf">
+                        <button type="button" id="gestor-wizard-anexar" title="Anexar print, PDF, CSV ou XLSX">
+                            <i class="fa-solid fa-paperclip"></i> Anexar
+                        </button>
+                        <p id="gestor-wizard-hint">Enter envia · Shift+Enter quebra linha</p>
+                    </div>
                     <button type="submit" id="gestor-wizard-enviar">Enviar</button>
                 </div>
             </form>
@@ -54,11 +63,15 @@
     const btnLimpar = document.getElementById('gestor-wizard-limpar');
     const btnConfirmar = document.getElementById('gestor-wizard-confirmar');
     const btnFechar = document.getElementById('gestor-wizard-fechar');
+    const fileInput = document.getElementById('gestor-wizard-file');
+    const btnAnexar = document.getElementById('gestor-wizard-anexar');
+    const filesEl = document.getElementById('gestor-wizard-files');
     if (!fab || !panel || !form) return;
 
     const urlChat = '{% url "wizard_chat" %}';
     const urlLimpar = '{% url "wizard_chat_limpar" %}';
     const csrf = '{{ csrf_token }}';
+    let arquivosPendentes = [];
 
     function csrfToken() {
         var m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
@@ -126,30 +139,87 @@
     });
     btnFechar.addEventListener('click', fechar);
 
+    function pintarArquivos() {
+        if (!arquivosPendentes.length) {
+            filesEl.hidden = true;
+            filesEl.innerHTML = '';
+            return;
+        }
+        filesEl.hidden = false;
+        filesEl.innerHTML = arquivosPendentes.map(function (f, i) {
+            return '<span class="gestor-wizard-chip">' +
+                (f.name || 'arquivo') +
+                ' <button type="button" data-i="' + i + '" title="Remover">&times;</button></span>';
+        }).join('');
+    }
+
+    function lerArquivo(file) {
+        return new Promise(function (resolve, reject) {
+            if (file.size > 5 * 1024 * 1024) {
+                reject(new Error((file.name || 'arquivo') + ' passa de 5 MB'));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function () {
+                const dataUrl = String(reader.result || '');
+                const b64 = dataUrl.split(',')[1] || '';
+                resolve({ nome: file.name, mime: file.type || '', data_base64: b64 });
+            };
+            reader.onerror = function () { reject(new Error('Falha ao ler ' + file.name)); };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    btnAnexar.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+        const lista = Array.prototype.slice.call(fileInput.files || []);
+        lista.forEach(function (f) {
+            if (arquivosPendentes.length >= 4) return;
+            arquivosPendentes.push(f);
+        });
+        fileInput.value = '';
+        pintarArquivos();
+    });
+    filesEl.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-i]');
+        if (!btn) return;
+        arquivosPendentes.splice(parseInt(btn.getAttribute('data-i'), 10), 1);
+        pintarArquivos();
+    });
+
     function enviar(texto) {
         const mensagem = (texto || '').trim();
-        if (!mensagem) return;
-        addMsg('user', '', mensagem);
+        const pendentes = arquivosPendentes.slice();
+        if (!mensagem && !pendentes.length) return;
+        const rotulo = mensagem || ('📎 ' + pendentes.map(function (f) { return f.name; }).join(', '));
+        addMsg('user', '', rotulo + (mensagem && pendentes.length ? '\n📎 ' + pendentes.map(function (f) { return f.name; }).join(', ') : ''));
         input.value = '';
+        arquivosPendentes = [];
+        pintarArquivos();
         setBusy(true);
-        fetch(urlChat, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken(),
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ message: mensagem, pagina: snapshotPagina() }),
-        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (res) {
+        Promise.all(pendentes.map(lerArquivo)).then(function (anexos) {
+            return fetch(urlChat, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    message: mensagem,
+                    pagina: snapshotPagina(),
+                    anexos: anexos,
+                }),
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+        }).then(function (res) {
             if (!res.ok || !res.d.ok) {
                 addMsg('assistant', '', (res.d && res.d.error) || 'Falha no wizard.');
                 return;
             }
             addMsg('assistant', res.d.reply_html || '', res.d.reply || '');
-        }).catch(function () {
-            addMsg('assistant', '', 'Falha de rede ao falar com o wizard.');
+        }).catch(function (err) {
+            addMsg('assistant', '', err && err.message ? err.message : 'Falha de rede ao falar com o wizard.');
         }).finally(function () { setBusy(false); input.focus(); });
     }
 

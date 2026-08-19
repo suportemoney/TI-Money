@@ -18,7 +18,6 @@ from helpdesk.assistente_services import (
     consultar_equipamento,
     consultar_licencas_discador,
     consultar_usuario,
-    criar_acesso_discador,
     criar_chip_assistente,
     definir_tag_chamado,
     descrever_imagem_anexo,
@@ -27,8 +26,6 @@ from helpdesk.assistente_services import (
     escalar_para_ti,
     extrair_texto_pdf_anexo,
     ler_anexo_como_texto,
-    liberar_acesso_discador,
-    liberar_licenca_ramal,
     limpar_recusa_chamado,
     listar_anexos_ticket,
     listar_campanhas_discador,
@@ -50,6 +47,11 @@ from helpdesk.assistente_services import (
     triar_chamado,
 )
 from integracoes.assistente_runtime import TOOLS_CHIP_SENSIVEIS, TOOLS_SPEC, _parse_args
+from integracoes.gestor_discador import (
+    DISCADOR_TOOLS_MUTACAO,
+    DISCADOR_TOOLS_SPEC,
+    executar_tool_discador_gestor,
+)
 from integracoes.llm import LlmError, chat_completion
 
 logger = logging.getLogger(__name__)
@@ -104,75 +106,9 @@ GESTOR_TOOLS_MUTACAO = frozenset({
     'criar_chip_operacional',
     'transferir_chip',
     'escalar_para_ti',
-    'criar_acesso_discador',
-    'liberar_acesso_discador',
-    'liberar_licenca_ramal',
-})
+}) | DISCADOR_TOOLS_MUTACAO
 
-_EXTRAS_DISCADOR = [
-    {
-        'type': 'function',
-        'function': {
-            'name': 'criar_acesso_discador',
-            'description': (
-                'Cria acesso JoyTec (titular, login, ramal, campanha, tipo). '
-                'Exige confirmação explícita do gestor no chat.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'titular_nome': {'type': 'string'},
-                    'login_discador': {'type': 'string'},
-                    'tipo': {'type': 'string'},
-                    'ramal_id': {'type': 'integer'},
-                    'ramal_numero': {'type': 'string'},
-                    'campanha_id': {'type': 'integer'},
-                    'campanha_nome': {'type': 'string'},
-                    'slug': {'type': 'string'},
-                },
-                'required': ['titular_nome', 'login_discador'],
-            },
-        },
-    },
-    {
-        'type': 'function',
-        'function': {
-            'name': 'liberar_acesso_discador',
-            'description': (
-                'Exclui o acesso e deixa o ramal Livre. Exige confirmação no chat. '
-                'Use acesso_id da tabela/consulta.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'acesso_id': {'type': 'integer'},
-                },
-                'required': ['acesso_id'],
-            },
-        },
-    },
-    {
-        'type': 'function',
-        'function': {
-            'name': 'liberar_licenca_ramal',
-            'description': (
-                'Marca ramal como Não configurado (deixa de consumir licença). '
-                'Ramal não pode ter acesso. Exige confirmação.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'ramal_id': {'type': 'integer'},
-                    'ramal_numero': {'type': 'string'},
-                    'slug': {'type': 'string'},
-                },
-                'required': [],
-            },
-        },
-    },
-]
-
-GESTOR_TOOLS_SPEC = list(TOOLS_SPEC) + _EXTRAS_DISCADOR
+GESTOR_TOOLS_SPEC = list(TOOLS_SPEC) + DISCADOR_TOOLS_SPEC
 
 
 def mensagem_confirma_mutacao(texto: str) -> bool:
@@ -198,7 +134,11 @@ def _system_prompt_gestor() -> str:
         '- Tools de chamado só funcionam se houver ticket_id no contexto.\n'
         '- Você NÃO é o Assistente do helpdesk: não precisa mandar mensagem '
         'pública nem escalar para si mesmo.\n'
-        '- Discador: pode criar/liberar acesso e licença (com confirmação).\n'
+        '- Discador JoyTec (só você, wizard): criar/editar/inativar ramais, '
+        'campanhas, acessos e contrato/licenças — sempre com confirmação.\n'
+        '- Inativar acesso = liberar_acesso_discador; inativar ramal = '
+        'NOT_CONFIGURED (liberar_licenca_ramal); inativar campanha = is_active false.\n'
+        '- Arquivos anexados (print, PDF, CSV, XLSX) vêm como texto/OCR no contexto: use-os.\n'
         '- Chips: pode criar/transferir sem menção @assistente.\n'
         '- Depois de executar, relate o resultado com IDs afetados.'
     )
@@ -345,29 +285,8 @@ def executar_tool_gestor(name: str, args: dict, ctx: dict) -> str:
                 'error': 'Não há chamado nesta página. Abra o chamado ou informe o ticket_id.',
             })
 
-        if name == 'criar_acesso_discador':
-            resultado = criar_acesso_discador(
-                args.get('titular_nome') or '',
-                args.get('login_discador') or '',
-                args.get('tipo') or 'CONSULTOR',
-                args.get('ramal_id'),
-                args.get('ramal_numero') or '',
-                args.get('campanha_id'),
-                args.get('campanha_nome') or '',
-                args.get('slug') or 'joytec',
-            )
-            _auditar_mutacao(ctx, name, args, resultado)
-            return _json_ok(resultado)
-        if name == 'liberar_acesso_discador':
-            resultado = liberar_acesso_discador(int(args.get('acesso_id') or 0))
-            _auditar_mutacao(ctx, name, args, resultado)
-            return _json_ok(resultado)
-        if name == 'liberar_licenca_ramal':
-            resultado = liberar_licenca_ramal(
-                args.get('ramal_id'),
-                args.get('ramal_numero') or '',
-                args.get('slug') or 'joytec',
-            )
+        if name in DISCADOR_TOOLS_MUTACAO:
+            resultado = executar_tool_discador_gestor(name, args, actor)
             _auditar_mutacao(ctx, name, args, resultado)
             return _json_ok(resultado)
         if name == 'set_ticket_status':
@@ -500,7 +419,12 @@ def _executar_tool_helpdesk(ticket_id: int, name: str, args: dict) -> str:
             args.get('q', ''), args.get('slug') or 'joytec',
         ))
     if name == 'listar_campanhas_discador':
-        return _json_ok(listar_campanhas_discador(args.get('slug') or 'joytec'))
+        so_ativas = args.get('so_ativas')
+        if so_ativas is None:
+            so_ativas = True
+        return _json_ok(listar_campanhas_discador(
+            args.get('slug') or 'joytec', so_ativas=bool(so_ativas),
+        ))
     if name == 'moneyconsig_auth_me':
         return _json_ok(moneyconsig_auth_me())
     if name == 'moneyconsig_usuario_consultar':
@@ -538,7 +462,14 @@ def _executar_tool_helpdesk(ticket_id: int, name: str, args: dict) -> str:
     return _json_ok({'ok': False, 'error': f'Tool desconhecida: {name}'})
 
 
-def processar_gestor(*, user, mensagem: str, historico: list, pagina: dict | None) -> dict:
+def processar_gestor(
+    *,
+    user,
+    mensagem: str,
+    historico: list,
+    pagina: dict | None,
+    anexos_texto: str = '',
+) -> dict:
     """Uma interação do wizard: LLM + tools. Devolve reply em texto."""
     pagina = pagina or {}
     ticket_raw = pagina.get('ticket_id')
@@ -558,6 +489,8 @@ def processar_gestor(*, user, mensagem: str, historico: list, pagina: dict | Non
         {'role': 'system', 'content': _system_prompt_gestor()},
         {'role': 'system', 'content': montar_contexto_pagina(pagina)},
     ]
+    if (anexos_texto or '').strip():
+        messages.append({'role': 'system', 'content': anexos_texto.strip()})
     for item in (historico or [])[-MAX_HISTORICO:]:
         role = item.get('role')
         content = (item.get('content') or '').strip()

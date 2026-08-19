@@ -1938,7 +1938,7 @@ def listar_campanhas_discador(slug: str = 'joytec', so_ativas: bool = True) -> d
     }
 
 
-def liberar_acesso_discador(acesso_id: int) -> dict:
+def liberar_acesso_discador(acesso_id: int, actor=None) -> dict:
     """Remove o acesso e deixa o ramal em FREE (ainda consome licença)."""
     from django.core.exceptions import ValidationError
 
@@ -1956,7 +1956,7 @@ def liberar_acesso_discador(acesso_id: int) -> dict:
     ramal_id = acesso.ramal_id
     titular = acesso.nome_exibicao
     try:
-        excluir_acesso(acesso=acesso, actor=None)
+        excluir_acesso(acesso=acesso, actor=actor)
     except ValidationError as exc:
         raise AssistenteServiceError(_msg_validacao(exc)) from exc
     return {
@@ -1977,6 +1977,7 @@ def liberar_licenca_ramal(
     ramal_id: int | None = None,
     ramal_numero: str = '',
     slug: str = 'joytec',
+    actor=None,
 ) -> dict:
     """Marca ramal como NOT_CONFIGURED (deixa de consumir licença). Exige sem acesso."""
     from django.core.exceptions import ValidationError
@@ -1991,7 +1992,7 @@ def liberar_licenca_ramal(
             ramal=ramal,
             numero=ramal.numero,
             status=Ramal.StatusChoices.NOT_CONFIGURED,
-            actor=None,
+            actor=actor,
         )
     except ValidationError as exc:
         raise AssistenteServiceError(_msg_validacao(exc)) from exc
@@ -2014,6 +2015,7 @@ def criar_acesso_discador(
     campanha_id: int | None = None,
     campanha_nome: str = '',
     slug: str = 'joytec',
+    actor=None,
 ) -> dict:
     """Cria acesso em ramal FREE/NOT_CONFIGURED (escolhe FREE se ramal omitido)."""
     from django.core.exceptions import ValidationError
@@ -2072,7 +2074,7 @@ def criar_acesso_discador(
             ramal=ramal,
             campanha=campanha,
             tipo=tipo_limpo,
-            actor=None,
+            actor=actor,
         )
     except ValidationError as exc:
         raise AssistenteServiceError(_msg_validacao(exc)) from exc
@@ -2101,24 +2103,23 @@ def _buscar_ramal(discador, *, ramal_id=None, ramal_numero: str = ''):
     return ramal
 
 
-def _buscar_campanha(discador, *, campanha_id=None, campanha_nome: str = ''):
+def _buscar_campanha(discador, *, campanha_id=None, campanha_nome: str = '', so_ativas: bool = True):
     from discador.models import Campanha
 
+    qs = Campanha.objects.filter(discador=discador)
+    if so_ativas:
+        qs = qs.filter(is_active=True)
     if campanha_id:
-        campanha = Campanha.objects.filter(pk=campanha_id, discador=discador).first()
+        campanha = qs.filter(pk=campanha_id).first()
         if not campanha:
             raise AssistenteServiceError('Campanha não encontrada.', 404)
         return campanha
     nome = (campanha_nome or '').strip()
     if not nome:
         raise AssistenteServiceError('Informe campanha_id ou campanha_nome.')
-    campanha = Campanha.objects.filter(
-        discador=discador, nome__iexact=nome, is_active=True,
-    ).first()
+    campanha = qs.filter(nome__iexact=nome).first()
     if not campanha:
-        campanha = Campanha.objects.filter(
-            discador=discador, nome__icontains=nome, is_active=True,
-        ).first()
+        campanha = qs.filter(nome__icontains=nome).first()
     if not campanha:
         raise AssistenteServiceError(f'Campanha "{nome}" não encontrada.', 404)
     return campanha
@@ -2128,6 +2129,313 @@ def _msg_validacao(exc) -> str:
     if hasattr(exc, 'messages'):
         return '; '.join(str(m) for m in exc.messages)
     return str(exc)
+
+
+def _status_ramal(texto: str, padrao: str = '') -> str:
+    """Aceita IN_USE/FREE/NOT_CONFIGURED ou rótulos em português."""
+    from discador.models import Ramal
+
+    bruto = (texto or '').strip().upper()
+    mapa = {
+        'IN_USE': Ramal.StatusChoices.IN_USE,
+        'EM USO': Ramal.StatusChoices.IN_USE,
+        'EM_USO': Ramal.StatusChoices.IN_USE,
+        'FREE': Ramal.StatusChoices.FREE,
+        'LIVRE': Ramal.StatusChoices.FREE,
+        'NOT_CONFIGURED': Ramal.StatusChoices.NOT_CONFIGURED,
+        'NAO CONFIGURADO': Ramal.StatusChoices.NOT_CONFIGURED,
+        'NÃO CONFIGURADO': Ramal.StatusChoices.NOT_CONFIGURED,
+        'NAO_CONFIGURADO': Ramal.StatusChoices.NOT_CONFIGURED,
+        'INATIVO': Ramal.StatusChoices.NOT_CONFIGURED,
+        'INATIVAR': Ramal.StatusChoices.NOT_CONFIGURED,
+    }
+    if not bruto:
+        return padrao
+    if bruto in mapa:
+        return mapa[bruto]
+    validos = {c.value for c in Ramal.StatusChoices}
+    if bruto in validos:
+        return bruto
+    raise AssistenteServiceError(
+        f'Status inválido. Use: {", ".join(sorted(validos))}.'
+    )
+
+
+def atualizar_acesso_discador(
+    acesso_id: int,
+    titular_nome: str | None = None,
+    login_discador: str | None = None,
+    tipo: str | None = None,
+    ramal_id: int | None = None,
+    ramal_numero: str = '',
+    campanha_id: int | None = None,
+    campanha_nome: str = '',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Edita acesso JoyTec; campos omitidos permanecem iguais."""
+    from django.core.exceptions import ValidationError
+
+    from discador.models import AcessoDiscador
+    from discador.services import atualizar_acesso
+
+    acesso = (
+        AcessoDiscador.objects.select_related('ramal', 'campanha', 'discador')
+        .filter(pk=acesso_id)
+        .first()
+    )
+    if not acesso:
+        raise AssistenteServiceError('Acesso não encontrado.', 404)
+    discador = acesso.discador
+    ramal = acesso.ramal
+    if ramal_id or (ramal_numero or '').strip():
+        ramal = _buscar_ramal(discador, ramal_id=ramal_id, ramal_numero=ramal_numero)
+    campanha = acesso.campanha
+    if campanha_id or (campanha_nome or '').strip():
+        campanha = _buscar_campanha(
+            discador, campanha_id=campanha_id, campanha_nome=campanha_nome, so_ativas=False,
+        )
+    tipo_limpo = acesso.tipo
+    if tipo:
+        tipo_limpo = (tipo or '').strip().upper()
+        tipos = {c.value for c in AcessoDiscador.TipoChoices}
+        if tipo_limpo not in tipos:
+            raise AssistenteServiceError(f'Tipo inválido. Use: {", ".join(sorted(tipos))}.')
+    nome = acesso.titular_nome if titular_nome is None else (titular_nome or '').strip()
+    login = acesso.login_discador if login_discador is None else (login_discador or '').strip()
+    if not login:
+        raise AssistenteServiceError('login_discador é obrigatório.')
+    try:
+        acesso = atualizar_acesso(
+            acesso=acesso,
+            titular_nome=nome,
+            titular_user=acesso.titular_user,
+            login_discador=login,
+            ramal=ramal,
+            campanha=campanha,
+            tipo=tipo_limpo,
+            actor=actor,
+        )
+    except ValidationError as exc:
+        raise AssistenteServiceError(_msg_validacao(exc)) from exc
+    return {'ok': True, 'acesso': _serialize_acesso(acesso)}
+
+
+def criar_ramal_discador(
+    numero: str,
+    status: str = 'NOT_CONFIGURED',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Cadastra ramal. Default Não configurado (não consome licença)."""
+    from django.core.exceptions import ValidationError
+    from django.db import IntegrityError
+
+    from discador.services import criar_ramal
+
+    discador = _resolver_discador(slug)
+    numero_limpo = (numero or '').strip()
+    if not numero_limpo:
+        raise AssistenteServiceError('numero do ramal é obrigatório.')
+    status_limpo = _status_ramal(status, padrao='NOT_CONFIGURED')
+    try:
+        ramal = criar_ramal(
+            discador=discador, numero=numero_limpo, status=status_limpo, actor=actor,
+        )
+    except ValidationError as exc:
+        raise AssistenteServiceError(_msg_validacao(exc)) from exc
+    except IntegrityError as exc:
+        raise AssistenteServiceError(f'Ramal "{numero_limpo}" já existe.') from exc
+    return {'ok': True, 'ramal': _serialize_ramal(ramal)}
+
+
+def atualizar_ramal_discador(
+    ramal_id: int | None = None,
+    ramal_numero: str = '',
+    numero: str = '',
+    status: str = '',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Edita número/status do ramal. Inativar = status NOT_CONFIGURED."""
+    from django.core.exceptions import ValidationError
+    from django.db import IntegrityError
+
+    from discador.services import atualizar_ramal
+
+    discador = _resolver_discador(slug)
+    ramal = _buscar_ramal(discador, ramal_id=ramal_id, ramal_numero=ramal_numero)
+    novo_numero = (numero or '').strip() or ramal.numero
+    novo_status = _status_ramal(status, padrao=ramal.status) if status else ramal.status
+    try:
+        ramal = atualizar_ramal(
+            ramal=ramal, numero=novo_numero, status=novo_status, actor=actor,
+        )
+    except ValidationError as exc:
+        raise AssistenteServiceError(_msg_validacao(exc)) from exc
+    except IntegrityError as exc:
+        raise AssistenteServiceError(f'Ramal "{novo_numero}" já existe.') from exc
+    return {'ok': True, 'ramal': _serialize_ramal(ramal)}
+
+
+def excluir_ramal_discador(
+    ramal_id: int | None = None,
+    ramal_numero: str = '',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Remove ramal do cadastro (precisa estar sem acesso)."""
+    from django.core.exceptions import ValidationError
+
+    from discador.services import excluir_ramal
+
+    discador = _resolver_discador(slug)
+    ramal = _buscar_ramal(discador, ramal_id=ramal_id, ramal_numero=ramal_numero)
+    numero = ramal.numero
+    pk = ramal.pk
+    try:
+        excluir_ramal(ramal=ramal, actor=actor)
+    except ValidationError as exc:
+        raise AssistenteServiceError(_msg_validacao(exc)) from exc
+    return {'ok': True, 'ramal_id': pk, 'ramal': numero, 'excluido': True}
+
+
+def criar_campanha_discador(nome: str, slug: str = 'joytec', actor=None) -> dict:
+    """Cria campanha ativa."""
+    from django.db import IntegrityError
+
+    from discador.services import criar_campanha
+
+    discador = _resolver_discador(slug)
+    nome_limpo = (nome or '').strip()
+    if not nome_limpo:
+        raise AssistenteServiceError('nome da campanha é obrigatório.')
+    try:
+        campanha = criar_campanha(discador=discador, nome=nome_limpo, is_active=True)
+    except IntegrityError as exc:
+        raise AssistenteServiceError(f'Campanha "{nome_limpo}" já existe.') from exc
+    return {
+        'ok': True,
+        'campanha': {'id': campanha.pk, 'nome': campanha.nome, 'is_active': campanha.is_active},
+    }
+
+
+def atualizar_campanha_discador(
+    campanha_id: int | None = None,
+    campanha_nome: str = '',
+    nome: str = '',
+    is_active=None,
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Edita nome e/ou ativa/inativa a campanha."""
+    from django.db import IntegrityError
+
+    from discador.services import atualizar_campanha
+
+    discador = _resolver_discador(slug)
+    campanha = _buscar_campanha(
+        discador, campanha_id=campanha_id, campanha_nome=campanha_nome, so_ativas=False,
+    )
+    novo_nome = (nome or '').strip() or campanha.nome
+    if is_active is None:
+        ativo = campanha.is_active
+    else:
+        ativo = bool(is_active) if not isinstance(is_active, str) else str(is_active).strip().lower() in (
+            '1', 'true', 'sim', 'ativa', 'ativo', 'yes',
+        )
+    try:
+        campanha = atualizar_campanha(campanha=campanha, nome=novo_nome, is_active=ativo)
+    except IntegrityError as exc:
+        raise AssistenteServiceError(f'Campanha "{novo_nome}" já existe.') from exc
+    return {
+        'ok': True,
+        'campanha': {'id': campanha.pk, 'nome': campanha.nome, 'is_active': campanha.is_active},
+    }
+
+
+def inativar_campanha_discador(
+    campanha_id: int | None = None,
+    campanha_nome: str = '',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Inativa campanha (is_active=False). Preferível a excluir se houver acessos."""
+    return atualizar_campanha_discador(
+        campanha_id=campanha_id,
+        campanha_nome=campanha_nome,
+        is_active=False,
+        slug=slug,
+        actor=actor,
+    )
+
+
+def excluir_campanha_discador(
+    campanha_id: int | None = None,
+    campanha_nome: str = '',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Exclui campanha sem acessos vinculados."""
+    from django.core.exceptions import ValidationError
+
+    from discador.services import excluir_campanha
+
+    discador = _resolver_discador(slug)
+    campanha = _buscar_campanha(
+        discador, campanha_id=campanha_id, campanha_nome=campanha_nome, so_ativas=False,
+    )
+    nome = campanha.nome
+    pk = campanha.pk
+    try:
+        excluir_campanha(campanha=campanha)
+    except ValidationError as exc:
+        raise AssistenteServiceError(_msg_validacao(exc)) from exc
+    return {'ok': True, 'campanha_id': pk, 'nome': nome, 'excluida': True}
+
+
+def atualizar_contrato_discador(
+    licencas_contratadas: int | None = None,
+    valor_por_licenca=None,
+    observacao: str = '',
+    slug: str = 'joytec',
+    actor=None,
+) -> dict:
+    """Altera quantidade e/ou valor do contrato de licenças."""
+    from decimal import Decimal, InvalidOperation
+
+    from django.core.exceptions import ValidationError
+
+    from discador.services import atualizar_contrato, kpis_licencas
+
+    discador = _resolver_discador(slug)
+    qtd = discador.licencas_contratadas if licencas_contratadas is None else int(licencas_contratadas)
+    valor = discador.valor_por_licenca
+    if valor_por_licenca is not None and str(valor_por_licenca).strip() != '':
+        try:
+            valor = Decimal(str(valor_por_licenca).replace(',', '.'))
+        except (InvalidOperation, TypeError) as exc:
+            raise AssistenteServiceError('valor_por_licenca inválido.') from exc
+    try:
+        discador = atualizar_contrato(
+            discador=discador,
+            valor_por_licenca=valor,
+            licencas_contratadas=qtd,
+            observacao=observacao or 'Alterado pelo wizard de gestão.',
+            actor=actor,
+        )
+    except ValidationError as exc:
+        raise AssistenteServiceError(_msg_validacao(exc)) from exc
+    kpis = kpis_licencas(discador)
+    return {
+        'ok': True,
+        'discador': discador.nome,
+        'licencas_contratadas': discador.licencas_contratadas,
+        'valor_por_licenca': str(discador.valor_por_licenca),
+        'custo_mensal': str(kpis['custo_mensal']),
+        'consumidas': kpis['consumidas'],
+        'disponiveis': kpis['disponiveis'],
+    }
 
 
 # ---------------------------------------------------------------------------
