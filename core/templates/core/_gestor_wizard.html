@@ -1,32 +1,44 @@
 <div id="gestor-wizard-root">
     <button type="button" id="gestor-wizard-fab" title="Wizard de gestão"
             aria-expanded="false" aria-controls="gestor-wizard-panel">
-        <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
     </button>
 
-    <div id="gestor-wizard-panel" class="hidden">
+    <div id="gestor-wizard-panel">
         <div id="gestor-wizard-sheet">
-        <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-            <div>
-                <p class="text-sm font-bold text-slate-900">Wizard de gestão</p>
-                <p class="text-[11px] text-slate-500">DeepSeek · vê a página atual</p>
+            <div id="gestor-wizard-header">
+                <div id="gestor-wizard-header-left">
+                    <div id="gestor-wizard-badge" aria-hidden="true">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h2>Wizard de gestão</h2>
+                        <p>DeepSeek · vê a página atual</p>
+                    </div>
+                </div>
+                <div id="gestor-wizard-actions">
+                    <button type="button" id="gestor-wizard-confirmar" title="Confirmar a última ação">Confirmar</button>
+                    <button type="button" id="gestor-wizard-limpar" title="Nova conversa">Limpar</button>
+                    <button type="button" id="gestor-wizard-fechar" title="Fechar" aria-label="Fechar wizard">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center gap-1">
-                <button type="button" id="gestor-wizard-confirmar" title="Enviar confirmação"
-                        class="text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded-lg">Confirmar</button>
-                <button type="button" id="gestor-wizard-limpar" title="Nova conversa"
-                        class="text-[11px] font-bold text-slate-500 hover:bg-slate-100 px-2 py-1 rounded-lg">Limpar</button>
+            <div id="gestor-wizard-msgs">
+                <div id="gestor-wizard-vazio">
+                    <i class="fa-regular fa-comments"></i>
+                    Descreva o que fazer nesta tela. Consulte à vontade; alteração só depois de Confirmar.
+                </div>
             </div>
-        </div>
-        <div id="gestor-wizard-msgs" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm min-h-[12rem]"></div>
-        <form id="gestor-wizard-form" class="border-t border-slate-100 p-3 flex gap-2">
-            <textarea id="gestor-wizard-input" rows="2" maxlength="4000"
-                      placeholder="Ex.: nessa tabela, libere os inativos…"
-                      class="flex-1 text-sm p-2 border border-slate-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
-            <button type="submit" id="gestor-wizard-enviar"
-                    class="self-end bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Enviar</button>
-        </form>
-        <p id="gestor-wizard-status" class="hidden px-3 pb-2 text-[11px] text-slate-400">Pensando…</p>
+            <form id="gestor-wizard-form">
+                <textarea id="gestor-wizard-input" rows="3" maxlength="4000"
+                          placeholder="Ex.: nessa tabela, libere os acessos inativos…"></textarea>
+                <div id="gestor-wizard-form-row">
+                    <p id="gestor-wizard-hint">Enter envia · Shift+Enter quebra linha</p>
+                    <button type="submit" id="gestor-wizard-enviar">Enviar</button>
+                </div>
+            </form>
+            <p id="gestor-wizard-status">Pensando…</p>
         </div>
     </div>
 </div>
@@ -41,6 +53,7 @@
     const statusEl = document.getElementById('gestor-wizard-status');
     const btnLimpar = document.getElementById('gestor-wizard-limpar');
     const btnConfirmar = document.getElementById('gestor-wizard-confirmar');
+    const btnFechar = document.getElementById('gestor-wizard-fechar');
     if (!fab || !panel || !form) return;
 
     const urlChat = '{% url "wizard_chat" %}';
@@ -77,10 +90,11 @@
     }
 
     function addMsg(role, html, text) {
+        msgs.classList.add('has-msgs');
         const wrap = document.createElement('div');
-        wrap.className = role === 'user'
-            ? 'ml-6 bg-blue-50 text-slate-800 rounded-xl px-3 py-2'
-            : 'mr-6 bg-slate-50 text-slate-800 rounded-xl px-3 py-2 border border-slate-100';
+        wrap.className = 'gestor-wizard-msg ' + (role === 'user'
+            ? 'gestor-wizard-msg-user'
+            : 'gestor-wizard-msg-assistant');
         if (html) wrap.innerHTML = html;
         else wrap.textContent = text || '';
         msgs.appendChild(wrap);
@@ -88,13 +102,12 @@
     }
 
     function setBusy(on) {
-        statusEl.classList.toggle('hidden', !on);
+        statusEl.classList.toggle('is-on', !!on);
         form.querySelector('button[type="submit"]').disabled = !!on;
         input.disabled = !!on;
     }
 
     function abrir() {
-        panel.classList.remove('hidden');
         panel.classList.add('is-open');
         fab.setAttribute('aria-expanded', 'true');
         try { localStorage.setItem('gestor-wizard-open', '1'); } catch (e) {}
@@ -102,16 +115,16 @@
     }
 
     function fechar() {
-        panel.classList.add('hidden');
         panel.classList.remove('is-open');
         fab.setAttribute('aria-expanded', 'false');
         try { localStorage.setItem('gestor-wizard-open', '0'); } catch (e) {}
     }
 
     fab.addEventListener('click', function () {
-        if (panel.classList.contains('hidden')) abrir();
-        else fechar();
+        if (panel.classList.contains('is-open')) fechar();
+        else abrir();
     });
+    btnFechar.addEventListener('click', fechar);
 
     function enviar(texto) {
         const mensagem = (texto || '').trim();
@@ -137,7 +150,7 @@
             addMsg('assistant', res.d.reply_html || '', res.d.reply || '');
         }).catch(function () {
             addMsg('assistant', '', 'Falha de rede ao falar com o wizard.');
-        }).finally(function () { setBusy(false); });
+        }).finally(function () { setBusy(false); input.focus(); });
     }
 
     form.addEventListener('submit', function (e) {
@@ -157,7 +170,8 @@
             headers: { 'X-CSRFToken': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
         }).then(function () {
-            msgs.innerHTML = '';
+            msgs.innerHTML = '<div id="gestor-wizard-vazio"><i class="fa-regular fa-comments"></i>Conversa limpa. Pode pedir de novo.</div>';
+            msgs.classList.remove('has-msgs');
         });
     });
 
