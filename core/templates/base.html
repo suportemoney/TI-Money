@@ -130,7 +130,8 @@
     <!-- Container global de modais HTMX -->
     <div id="modal-container"></div>
 
-    {% if wizard_gestor_ativo %}
+    {# FAB global (todas as páginas que estendem este layout) #}
+    {% if user.is_authenticated and wizard_gestor_ativo %}
     {% include "core/_gestor_wizard.html" %}
     {% endif %}
 

@@ -1,13 +1,62 @@
-{# Wizard flutuante — só renderizado para users da allowlist #}
-<div id="gestor-wizard-root" class="fixed bottom-5 right-5 z-[45] font-sans">
+{# Wizard flutuante — só renderizado para users da allowlist.
+   CSS próprio: o tailwind.css de produção não é rebuildado no deploy,
+   então bottom-5/h-14/z-[45] não existiriam e o FAB ficava invisível
+   (body flex + overflow-hidden). #}
+<style>
+    #gestor-wizard-root {
+        position: fixed !important;
+        right: 1.25rem !important;
+        bottom: 1.25rem !important;
+        z-index: 45 !important;
+        width: 3.5rem;
+        height: 3.5rem;
+        flex-shrink: 0;
+        pointer-events: none;
+    }
+    #gestor-wizard-fab,
+    #gestor-wizard-panel {
+        pointer-events: auto;
+    }
+    #gestor-wizard-fab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 3.5rem;
+        height: 3.5rem;
+        border: 0;
+        border-radius: 9999px;
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+        cursor: pointer;
+    }
+    #gestor-wizard-fab:hover { background: #1d4ed8; }
+    #gestor-wizard-panel {
+        position: absolute;
+        right: 0;
+        bottom: 4.25rem;
+        width: min(26rem, calc(100vw - 2.5rem));
+    }
+    #gestor-wizard-panel.is-open { display: block; }
+    #gestor-wizard-sheet {
+        display: flex;
+        flex-direction: column;
+        max-height: min(70vh, 32rem);
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    }
+</style>
+<div id="gestor-wizard-root" class="font-sans">
     <button type="button" id="gestor-wizard-fab" title="Wizard de gestão"
-            class="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-colors"
             aria-expanded="false" aria-controls="gestor-wizard-panel">
         <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
     </button>
 
-    <div id="gestor-wizard-panel" class="hidden absolute bottom-16 right-0 w-[22rem] sm:w-[26rem]">
-        <div class="max-h-[min(70vh,32rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+    <div id="gestor-wizard-panel" class="hidden">
+        <div id="gestor-wizard-sheet">
         <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div>
                 <p class="text-sm font-bold text-slate-900">Wizard de gestão</p>
@@ -97,6 +146,7 @@
 
     function abrir() {
         panel.classList.remove('hidden');
+        panel.classList.add('is-open');
         fab.setAttribute('aria-expanded', 'true');
         try { localStorage.setItem('gestor-wizard-open', '1'); } catch (e) {}
         input.focus();
@@ -104,6 +154,7 @@
 
     function fechar() {
         panel.classList.add('hidden');
+        panel.classList.remove('is-open');
         fab.setAttribute('aria-expanded', 'false');
         try { localStorage.setItem('gestor-wizard-open', '0'); } catch (e) {}
     }

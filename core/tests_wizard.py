@@ -104,4 +104,5 @@ class WizardGateHttpTest(TestCase):
             self.client.force_login(self.outro)
             html_nao = self.client.get(reverse('dashboard')).content.decode()
         self.assertIn('gestor-wizard-root', html_ok)
+        self.assertIn('position: fixed', html_ok)
         self.assertNotIn('gestor-wizard-root', html_nao)
