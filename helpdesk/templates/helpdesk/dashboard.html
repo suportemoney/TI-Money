@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static asset_version %}
 
 {% block title %}Dashboard - Helpdesk{% endblock %}
 
@@ -50,9 +51,41 @@
 
     {% include "helpdesk/_poll.html" %}
     {% include "helpdesk/_informativo_expire_modal.html" %}
+
+    <form id="dashboard-periodo-form"
+          method="get"
+          action="{% url 'helpdesk:dashboard' %}"
+          hx-get="{% url 'helpdesk:dashboard_metrics' %}"
+          hx-target="#dashboard-metrics-container"
+          hx-swap="innerHTML"
+          hx-include="this"
+          class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap gap-4 items-end">
+        <input type="hidden" name="v" value="{{ helpdesk_asset_v }}">
+        <div class="w-40">
+            <label for="dashboard-date-from" class="block text-xs font-semibold text-slate-500 uppercase mb-1">Aberto de</label>
+            <input id="dashboard-date-from" type="date" name="date_from" value="{{ date_from }}"
+                   class="w-full text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="w-40">
+            <label for="dashboard-date-to" class="block text-xs font-semibold text-slate-500 uppercase mb-1">Aberto até</label>
+            <input id="dashboard-date-to" type="date" name="date_to" value="{{ date_to }}"
+                   class="w-full text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                Filtrar
+            </button>
+            <a href="{% url 'helpdesk:dashboard' %}" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+                Mês vigente
+            </a>
+        </div>
+        <p class="text-xs text-slate-400 ml-auto">Ativos no Kanban e histórico arquivado no período de abertura.</p>
+    </form>
+
     <div id="dashboard-metrics-container"
          hx-trigger="ticketUpdated from:body"
-         hx-get="{% url 'helpdesk:dashboard_metrics' %}?v={{ helpdesk_asset_v }}"
+         hx-get="{% url 'helpdesk:dashboard_metrics' %}"
+         hx-include="#dashboard-periodo-form"
          hx-swap="innerHTML">
         {% include "helpdesk/_dashboard_metrics.html" %}
     </div>
@@ -60,4 +93,6 @@
     {% include "core/_audit_log_table.html" with registros=audit_logs titulo=audit_titulo %}
 </div>
 <div id="drawer-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{% static_v 'helpdesk/dashboard-charts.js' %}"></script>
 {% endblock %}

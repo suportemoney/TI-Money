@@ -1,60 +1,114 @@
-<!-- KPIs -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+{{ charts_data|json_script:"helpdesk-dashboard-charts-data" }}
+
+<!-- KPIs do período -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Total Geral Registrado</p>
+        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Total abertos no período</p>
         <h3 class="text-4xl font-bold text-slate-900">{{ total_tickets }}</h3>
     </div>
     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
-        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Ativos no Kanban</p>
-        <h3 class="text-4xl font-bold text-blue-600">{{ total_kanban_active }}</h3>
+        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Atendidos</p>
+        <h3 class="text-4xl font-bold text-blue-600">{{ total_atendidos }}</h3>
+        <p class="text-xs text-slate-400 mt-2">Saiu de Novos ({{ total_novos }} ainda novos)</p>
     </div>
-    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-400">
-        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Arquivados Automaticamente</p>
-        <h3 class="text-4xl font-bold text-slate-600">{{ total_archived }}</h3>
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-green-500">
+        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Resolvidos</p>
+        <h3 class="text-4xl font-bold text-green-600">{{ total_resolvidos }}</h3>
+    </div>
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-red-500">
+        <p class="text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wide">Recusados</p>
+        <h3 class="text-4xl font-bold text-red-600">{{ total_recusados }}</h3>
     </div>
 </div>
 
-<!-- Tabelas de Distribuição -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- Distribuição por Status -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-400">
+        <p class="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Ativos no Kanban</p>
+        <h3 class="text-3xl font-bold text-blue-600">{{ total_kanban_active }}</h3>
+    </div>
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-400">
+        <p class="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Arquivados automaticamente</p>
+        <h3 class="text-3xl font-bold text-slate-600">{{ total_archived }}</h3>
+    </div>
+</div>
+
+<!-- Resultado + status/prioridade -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Resultado no período</h4>
+        </div>
+        <div class="p-6">
+            <div class="relative h-64">
+                <canvas id="chart-helpdesk-resultado" aria-label="Gráfico de resultado dos chamados"></canvas>
+            </div>
+        </div>
+    </div>
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
             <h4 class="font-bold text-slate-800">Tickets por Status</h4>
         </div>
         <div class="p-6">
-            {% for item in status_distribution %}
-            <div class="flex justify-between items-center mb-3 last:mb-0">
-                <span class="text-sm font-medium text-slate-600">
-                    {% for k,v in status_labels.items %}{% if k == item.status %}{{ v }}{% endif %}{% endfor %}
-                </span>
-                <span class="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-bold">{{ item.total }}</span>
+            <div class="relative h-64">
+                <canvas id="chart-helpdesk-status" aria-label="Gráfico de tickets por status"></canvas>
             </div>
-            {% empty %}
-            <p class="text-sm text-slate-400 text-center">Sem dados suficientes.</p>
-            {% endfor %}
         </div>
     </div>
-    
-    <!-- Distribuição por Prioridade -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
             <h4 class="font-bold text-slate-800">Tickets por Prioridade</h4>
         </div>
         <div class="p-6">
-            {% for item in priority_distribution %}
-            <div class="flex justify-between items-center mb-3 last:mb-0">
-                <span class="text-sm font-medium text-slate-600">
-                    {% if item.priority %}
-                        {% for k,v in priority_labels.items %}{% if k == item.priority %}{{ v }}{% endif %}{% endfor %}
-                    {% else %}
-                        Sem prioridade
-                    {% endif %}
-                </span>
-                <span class="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-bold">{{ item.total }}</span>
+            <div class="relative h-64">
+                <canvas id="chart-helpdesk-prioridade" aria-label="Gráfico de tickets por prioridade"></canvas>
             </div>
-            {% empty %}
-            <p class="text-sm text-slate-400 text-center">Sem dados suficientes.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Motivos de tabulação -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Motivos de recusa</h4>
+            <p class="text-xs text-slate-500 mt-0.5">Tabulação Recusado · {{ motivos_recusa.total }} chamado{{ motivos_recusa.total|pluralize }}</p>
+        </div>
+        <div class="p-6">
+            {% if motivos_recusa.total %}
+            <div class="relative h-64 mb-4">
+                <canvas id="chart-helpdesk-motivos-recusa" aria-label="Gráfico de motivos de recusa"></canvas>
+            </div>
+            {% for item in motivos_recusa.items %}
+            <div class="flex justify-between items-start gap-3 mb-3 last:mb-0">
+                <span class="text-sm font-medium text-slate-600 break-words">{{ item.label }}</span>
+                <span class="shrink-0 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-bold">{{ item.total }} · {{ item.percent }}%</span>
+            </div>
             {% endfor %}
+            {% else %}
+            <p class="text-sm text-slate-400 text-center">Sem recusas no período.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Motivos de resolução</h4>
+            <p class="text-xs text-slate-500 mt-0.5">Tabulação Resolvido · {{ motivos_resolucao.total }} chamado{{ motivos_resolucao.total|pluralize }}</p>
+        </div>
+        <div class="p-6">
+            {% if motivos_resolucao.total %}
+            <div class="relative h-64 mb-4">
+                <canvas id="chart-helpdesk-motivos-resolucao" aria-label="Gráfico de motivos de resolução"></canvas>
+            </div>
+            {% for item in motivos_resolucao.items %}
+            <div class="flex justify-between items-start gap-3 mb-3 last:mb-0">
+                <span class="text-sm font-medium text-slate-600 break-words">{{ item.label }}</span>
+                <span class="shrink-0 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold">{{ item.total }} · {{ item.percent }}%</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-sm text-slate-400 text-center">Sem resoluções no período.</p>
+            {% endif %}
         </div>
     </div>
 </div>
