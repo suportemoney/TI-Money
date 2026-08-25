@@ -1001,7 +1001,10 @@ def ticket_add_comment(request, pk):
             adicionar_nao_lido_operadores(ticket, request.user)
             # Push só para mencionados (TI) — solicitante não recebe
             if mencionados:
-                agendar_notificacao_mencoes(ticket, mencionados, f'[Interno] {preview}')
+                agendar_notificacao_mencoes(
+                    ticket, mencionados, f'[Interno] {preview}',
+                    is_interno=True,
+                )
         else:
             adicionar_nao_lido(ticket, request.user, usuarios_extra=mencionados)
             agendar_notificacao_chamado(ticket, request.user, EVENTO_COMMENT, preview)

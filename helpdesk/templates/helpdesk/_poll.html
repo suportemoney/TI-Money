@@ -53,9 +53,18 @@
             return ids.indexOf(currentUserId) !== -1;
         }
 
-        /** Comentário interno: só TI/staff ouve/vê notificação de som */
+        /** Comentário interno: quem não vê interno não recebe som nem toast */
         function eventoInternoInvisivel(detail) {
             return Boolean(detail.is_interno) && !podeVerInternos;
+        }
+
+        /** Sem som: mensagem interna (qualquer um) ou chamado já finalizado */
+        function deveSilenciarSom(detail) {
+            if (Boolean(detail.is_interno)) {
+                return true;
+            }
+            const status = String(detail.ticket_status || '').toUpperCase();
+            return status === 'RESOLVED';
         }
 
         /** Toca alerta-ruim com ganho amplificado (Web Audio; volume HTML max=1). */
@@ -139,23 +148,25 @@
                 return;
             }
 
-            if (foiMencionado(detail)) {
-                tocarAlertaMencao();
-            } else if (detail.acao === 'COMMENT') {
-                audioComentario.currentTime = 0;
-                audioComentario.play().catch(function(e) {
-                    console.log('Audio play prevented (comentario):', e);
-                });
-            } else if (
-                detail.acao === 'STATUS_CHANGED' ||
-                detail.acao === 'CREATED' ||
-                detail.acao === 'PRIORITY_CHANGED' ||
-                detail.acao === 'TRIAGE_CHANGED'
-            ) {
-                audioAtualizacao.currentTime = 0;
-                audioAtualizacao.play().catch(function(e) {
-                    console.log('Audio play prevented (atualizacao):', e);
-                });
+            if (!deveSilenciarSom(detail)) {
+                if (foiMencionado(detail)) {
+                    tocarAlertaMencao();
+                } else if (detail.acao === 'COMMENT') {
+                    audioComentario.currentTime = 0;
+                    audioComentario.play().catch(function(e) {
+                        console.log('Audio play prevented (comentario):', e);
+                    });
+                } else if (
+                    detail.acao === 'STATUS_CHANGED' ||
+                    detail.acao === 'CREATED' ||
+                    detail.acao === 'PRIORITY_CHANGED' ||
+                    detail.acao === 'TRIAGE_CHANGED'
+                ) {
+                    audioAtualizacao.currentTime = 0;
+                    audioAtualizacao.play().catch(function(e) {
+                        console.log('Audio play prevented (atualizacao):', e);
+                    });
+                }
             }
 
             exibirNotificacaoBrowser(detail);
@@ -165,6 +176,12 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('message', function(event) {
                 if (event.data && event.data.type === 'HELPDESK_MENTION_ALERT') {
+                    if (event.data.is_interno) {
+                        return;
+                    }
+                    if (String(event.data.ticket_status || '').toUpperCase() === 'RESOLVED') {
+                        return;
+                    }
                     tocarAlertaMencao();
                 }
             });

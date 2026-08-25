@@ -37,10 +37,16 @@ self.addEventListener('push', function(event) {
                 if (payload.tipo !== 'MENTION') {
                     return;
                 }
+                // Interno ou chamado finalizado: não dispara som nas abas abertas
+                if (payload.is_interno || String(payload.ticket_status || '').toUpperCase() === 'RESOLVED') {
+                    return;
+                }
                 clientList.forEach(function(client) {
                     client.postMessage({
                         type: 'HELPDESK_MENTION_ALERT',
                         ticketUrl: payload.url || '/helpdesk/',
+                        is_interno: Boolean(payload.is_interno),
+                        ticket_status: payload.ticket_status || '',
                     });
                 });
             }),

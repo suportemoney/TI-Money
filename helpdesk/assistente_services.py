@@ -360,7 +360,10 @@ def send_assistente_message(
         try:
             from helpdesk.notifications import agendar_notificacao_mencoes
             prefixo = '[Interno] ' if interno else ''
-            agendar_notificacao_mencoes(ticket, mencionados, f'{prefixo}{preview}')
+            agendar_notificacao_mencoes(
+                ticket, mencionados, f'{prefixo}{preview}',
+                is_interno=interno,
+            )
         except Exception:
             pass
 
@@ -710,6 +713,89 @@ def set_ticket_priority(ticket_id: int, priority: str) -> dict:
     }
 
 
+def _normalizar_texto_intencao(texto: str) -> str:
+    """Minúsculas sem acento para casar intenção de fechar/resolver."""
+    mapa = str.maketrans({
+        'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a',
+        'é': 'e', 'ê': 'e',
+        'í': 'i',
+        'ó': 'o', 'ô': 'o', 'õ': 'o',
+        'ú': 'u',
+        'ç': 'c',
+    })
+    return (texto or '').lower().translate(mapa)
+
+
+def _texto_nega_finalizacao(texto_norm: str) -> bool:
+    """True se o trecho negar resolução/fechamento (ex.: ainda não resolvi)."""
+    return bool(re.search(
+        r'\b(nao|ainda nao)\b.{0,40}\b(resolv|fech|finaliz|encerr)',
+        texto_norm,
+    ))
+
+
+_RE_SOLICITANTE_FECHAR = re.compile(
+    r'\b('
+    r'ja\s+(foi\s+)?resolvido|ja\s+resolvi|problema\s+(ja\s+)?resolvido|'
+    r'esta\s+resolvido|resolvido\s+aqui|'
+    r'pode\s+(fechar|finalizar|encerrar)|'
+    r'(fecha|fechar|finaliza|finalizar|encerra|encerrar)\s+(o\s+)?chamado|'
+    r'deu\s+certo|ja\s+funcionou|ja\s+deu\s+certo|'
+    r'pode\s+encerrar|ja\s+esta\s+ok'
+    r')\b'
+    r'|^(resolvido|finalizado|pode fechar|pode finalizar)[\s!.]*$',
+    re.I,
+)
+_RE_TI_FECHAR = re.compile(
+    r'\b('
+    r'fecha|fechar|finaliza|finalizar|encerra|encerrar|resolved|'
+    r'pode\s+(fechar|finalizar|encerrar)|'
+    r'status\s+resolved|coluna\s+finalizado|move\s+para\s+finalizado'
+    r')\b',
+    re.I,
+)
+_RE_MOTIVO_SEM_RESPOSTA = re.compile(
+    r'sem\s+resposta|falta\s+de\s+resposta|nao\s+respondeu|'
+    r'ausencia\s+de\s+resposta|ninguem\s+respondeu',
+    re.I,
+)
+
+
+def assistente_autorizado_a_finalizar(ticket: Ticket) -> bool:
+    """
+    IA só finaliza se solicitante/criador disse que resolveu/pediu fechar,
+    ou se um membro TI pediu (público ou interno). Nunca por falta de resposta.
+    """
+    ids_solicitante = set()
+    if ticket.requester_user_id:
+        ids_solicitante.add(ticket.requester_user_id)
+    if ticket.created_by_id:
+        ids_solicitante.add(ticket.created_by_id)
+
+    recentes = list(
+        Comment.objects.filter(ticket=ticket, is_active=True, is_assistente=False)
+        .select_related('author')
+        .order_by('-created_at')[:12]
+    )
+    for comment in recentes:
+        autor = comment.author
+        if not autor:
+            continue
+        texto_norm = _normalizar_texto_intencao(comment.text or '')
+        if not texto_norm or _texto_nega_finalizacao(texto_norm):
+            continue
+        eh_ti = usuario_eh_operador_helpdesk(autor)
+        if eh_ti and _RE_TI_FECHAR.search(texto_norm):
+            return True
+        if (
+            autor.pk in ids_solicitante
+            and not comment.is_interno
+            and _RE_SOLICITANTE_FECHAR.search(texto_norm)
+        ):
+            return True
+    return False
+
+
 def set_ticket_status(ticket_id: int, status: str, *, via_assistente: bool = False) -> dict:
     status = (status or '').strip().upper()
     if status not in STATUS_VALIDOS:
@@ -723,6 +809,18 @@ def set_ticket_status(ticket_id: int, status: str, *, via_assistente: bool = Fal
     ticket = Ticket.objects.filter(pk=ticket_id).first()
     if not ticket:
         raise AssistenteServiceError('Chamado não encontrado.', 404)
+    # IA não fecha por conta própria nem por silêncio — só pedido explícito
+    if (
+        via_assistente
+        and status == Ticket.StatusChoices.RESOLVED
+        and ticket.status != Ticket.StatusChoices.RESOLVED
+        and not assistente_autorizado_a_finalizar(ticket)
+    ):
+        raise AssistenteServiceError(
+            'Não é permitido finalizar o chamado sem pedido do solicitante/criador '
+            '(já resolvido ou pode fechar) ou de um membro TI. '
+            'Não finalize por falta de resposta.'
+        )
     antes = ticket.status
     ticket.status = status
     update_fields = ['status', 'updated_at']
@@ -899,6 +997,11 @@ def recusar_chamado(ticket_id: int, motivo: str) -> dict:
     motivo_limpo = (motivo or '').strip()
     if not motivo_limpo:
         raise AssistenteServiceError('Motivo da recusa é obrigatório.')
+    if _RE_MOTIVO_SEM_RESPOSTA.search(_normalizar_texto_intencao(motivo_limpo)):
+        raise AssistenteServiceError(
+            'Não recuse nem finalize por falta de resposta. '
+            'Aguarde o solicitante/criador ou um pedido de membro TI para fechar.'
+        )
 
     ticket = Ticket.objects.filter(pk=ticket_id).first()
     if not ticket:
@@ -920,19 +1023,11 @@ def recusar_chamado(ticket_id: int, motivo: str) -> dict:
         'resolved_at', 'updated_at',
     ])
 
-    if motivo_limpo.lower() == 'sem resposta':
-        texto = (
-            'Chamado encerrado por falta de resposta.\n'
-            'Motivo: Sem resposta.\n\n'
-            'Se o problema continuar, abra um novo chamado e responda às perguntas '
-            'do Assistente para podermos ajudar.'
-        )
-    else:
-        texto = (
-            f'Chamado recusado.\nMotivo: {motivo_limpo}\n\n'
-            'Por favor, abra um novo chamado com título e descrição que correspondam '
-            'ao problema real.'
-        )
+    texto = (
+        f'Chamado recusado.\nMotivo: {motivo_limpo}\n\n'
+        'Por favor, abra um novo chamado com título e descrição que correspondam '
+        'ao problema real.'
+    )
 
     comment = Comment.objects.create(
         ticket=ticket,
@@ -2613,7 +2708,10 @@ def pedir_ajuda_ti(ticket_id: int, pergunta: str) -> dict:
     if mencionados:
         try:
             from helpdesk.notifications import agendar_notificacao_mencoes
-            agendar_notificacao_mencoes(ticket, mencionados, f'[Interno] {pergunta[:100]}')
+            agendar_notificacao_mencoes(
+                ticket, mencionados, f'[Interno] {pergunta[:100]}',
+                is_interno=True,
+            )
         except Exception:
             pass
 

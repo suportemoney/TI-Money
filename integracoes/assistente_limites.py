@@ -22,6 +22,8 @@ LIMITACOES_TOOLS_TEXTO = (
     '- NÃO repita mensagens nem peça dados já informados no histórico.\n'
     '- NÃO pode criar/liberar acesso Discador JoyTec nem comprar ramais.\n'
     '- NÃO pode usar status PENDING (só TI após Em Atendimento).\n'
+    '- NÃO finalize/recuse por falta de resposta; RESOLVED só com pedido do '
+    'solicitante/criador ou de membro TI.\n'
     '- Público = breve; diagnóstico longo = interno.\n'
     '- Comunicados vigentes da Central Informativa prevalecem sobre passos genéricos.\n'
     '- MoneyConsig: tools moneyconsig_*; UI/abas humanas → escalar_para_ti.\n'

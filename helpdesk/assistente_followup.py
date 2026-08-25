@@ -6,8 +6,8 @@ não enviou nenhuma mensagem depois (sem diálogo). Não se aplica a chamados
 que já tiveram troca de mensagens com a IA.
 
 - 5 min sem resposta → mensagem pública com @menção
-- 20 min sem resposta → recusa com motivo "Sem resposta"
-  (arquivamento continua só após 24h, pelo fluxo padrão)
+- NÃO recusa/finaliza por falta de resposta (Novos ou Pendente).
+  Fechar só com pedido do solicitante/criador ou de membro TI.
 
 Também sincroniza chamados antigos (ex.: Novos com IA antes do deploy).
 Disparado no poll HTMX (throttle), como o arquivamento.
@@ -23,7 +23,6 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 SEGUNDOS_MENCAO = 5 * 60
-SEGUNDOS_RECUSA = 20 * 60
 THROTTLE_SEGUNDOS = 30
 
 _ultimo_run = None
@@ -231,17 +230,6 @@ def _enviar_cobranca_mencao(ticket) -> bool:
     return True
 
 
-def _recusar_sem_resposta(ticket) -> bool:
-    from helpdesk.assistente_services import AssistenteServiceError, recusar_chamado
-
-    try:
-        recusar_chamado(ticket.pk, 'Sem resposta')
-        return True
-    except AssistenteServiceError:
-        logger.exception('Falha ao recusar ticket %s por Sem resposta', ticket.pk)
-        return False
-
-
 def sincronizar_espera_tickets_sem_resposta() -> int:
     """
     Preenche assistente_aguardando_desde em Novos onde a IA falou e
@@ -312,7 +300,7 @@ def sincronizar_espera_tickets_sem_resposta() -> int:
 def processar_followups_assistente(*, forcar: bool = False) -> dict:
     """
     1) Sincroniza Novos com IA sem resposta (legado + atuais)
-    2) Aplica menção (5min) / recusa (20min)
+    2) Aplica menção (5min). Não recusa/finaliza por silêncio.
     """
     global _ultimo_run
 
@@ -328,7 +316,6 @@ def processar_followups_assistente(*, forcar: bool = False) -> dict:
     sincronizados = sincronizar_espera_tickets_sem_resposta()
 
     mencoes = 0
-    recusas = 0
     qs = (
         Ticket.objects.filter(
             is_active=True,
@@ -336,6 +323,7 @@ def processar_followups_assistente(*, forcar: bool = False) -> dict:
             is_rejected=False,
             assistente_escalado=False,
             assistente_aguardando_desde__isnull=False,
+            assistente_followup_mencao_em__isnull=True,
             status=Ticket.StatusChoices.NEW,
         )
         .select_related('requester_user', 'created_by', 'assigned_to')
@@ -354,60 +342,28 @@ def processar_followups_assistente(*, forcar: bool = False) -> dict:
                 continue
 
             espera = agora - ticket.assistente_aguardando_desde
-            if espera >= timedelta(seconds=SEGUNDOS_RECUSA):
-                desde = ticket.assistente_aguardando_desde
-                mencao_em = ticket.assistente_followup_mencao_em
-                n = Ticket.objects.filter(
-                    pk=ticket.pk,
-                    assistente_aguardando_desde=desde,
-                    is_rejected=False,
-                    assistente_escalado=False,
-                    status=Ticket.StatusChoices.NEW,
-                ).update(
-                    assistente_aguardando_desde=None,
-                    assistente_followup_mencao_em=None,
-                    updated_at=agora,
-                )
-                if n != 1:
-                    continue
-                if _recusar_sem_resposta(ticket):
-                    recusas += 1
-                else:
-                    Ticket.objects.filter(
-                        pk=ticket.pk,
-                        assistente_aguardando_desde__isnull=True,
-                        is_rejected=False,
-                        status=Ticket.StatusChoices.NEW,
-                    ).update(
-                        assistente_aguardando_desde=desde,
-                        assistente_followup_mencao_em=mencao_em,
-                        updated_at=timezone.now(),
-                    )
+            if espera < timedelta(seconds=SEGUNDOS_MENCAO):
                 continue
 
-            if (
-                espera >= timedelta(seconds=SEGUNDOS_MENCAO)
-                and ticket.assistente_followup_mencao_em is None
-            ):
-                n = Ticket.objects.filter(
-                    pk=ticket.pk,
-                    assistente_followup_mencao_em__isnull=True,
-                    assistente_aguardando_desde=ticket.assistente_aguardando_desde,
-                    status=Ticket.StatusChoices.NEW,
-                ).update(
-                    assistente_followup_mencao_em=agora,
-                    updated_at=agora,
+            n = Ticket.objects.filter(
+                pk=ticket.pk,
+                assistente_followup_mencao_em__isnull=True,
+                assistente_aguardando_desde=ticket.assistente_aguardando_desde,
+                status=Ticket.StatusChoices.NEW,
+            ).update(
+                assistente_followup_mencao_em=agora,
+                updated_at=agora,
+            )
+            if n != 1:
+                continue
+            ticket.assistente_followup_mencao_em = agora
+            if _enviar_cobranca_mencao(ticket):
+                mencoes += 1
+            else:
+                Ticket.objects.filter(pk=ticket.pk).update(
+                    assistente_followup_mencao_em=None,
+                    updated_at=timezone.now(),
                 )
-                if n != 1:
-                    continue
-                ticket.assistente_followup_mencao_em = agora
-                if _enviar_cobranca_mencao(ticket):
-                    mencoes += 1
-                else:
-                    Ticket.objects.filter(pk=ticket.pk).update(
-                        assistente_followup_mencao_em=None,
-                        updated_at=timezone.now(),
-                    )
         except Exception:
             logger.exception('Erro no follow-up do Assistente ticket %s', ticket.pk)
 
@@ -415,5 +371,5 @@ def processar_followups_assistente(*, forcar: bool = False) -> dict:
         'ok': True,
         'sincronizados': sincronizados,
         'mencoes': mencoes,
-        'recusas': recusas,
+        'recusas': 0,
     }

@@ -102,6 +102,12 @@ def poll_ticket_updates(request):
         descricao = latest_log.descricao[:200] if latest_log else ''
         metadata = (latest_log.metadata or {}) if latest_log else {}
 
+        ticket_status = ''
+        if ticket_id:
+            ticket_poll = Ticket.objects.filter(pk=ticket_id).only('status').first()
+            if ticket_poll:
+                ticket_status = ticket_poll.status
+
         trigger_data = {
             'ticketUpdated': {
                 'actor_id': actor_id,
@@ -109,8 +115,9 @@ def poll_ticket_updates(request):
                 'ticket_id': ticket_id,
                 'descricao': descricao,
                 'mention_user_ids': metadata.get('mention_user_ids') or [],
-                # Comentário interno: frontend não toca som para quem não vê interno
+                # Som: interno ou chamado já finalizado não toca no frontend
                 'is_interno': bool(metadata.get('is_interno')),
+                'ticket_status': ticket_status,
             }
         }
         if letreiro_mudou:

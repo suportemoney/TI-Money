@@ -74,7 +74,11 @@ def set_ticket_priority(ticket_id: int, priority: str) -> str:
 
 @mcp.tool()
 def set_ticket_status(ticket_id: int, status: str) -> str:
-    """Altera coluna Kanban: NEW, IN_PROGRESS, PENDING ou RESOLVED."""
+    """Altera coluna Kanban: NEW, IN_PROGRESS, PENDING ou RESOLVED.
+
+    RESOLVED só com pedido do solicitante/criador ou de membro TI.
+    Não finaliza por falta de resposta.
+    """
     try:
         return get_client().post_text(
             f'tickets/{ticket_id}/status/',
@@ -119,7 +123,10 @@ def triar_chamado(ticket_id: int, priority: str, specific_category_id: int = 0) 
 
 @mcp.tool()
 def recusar_chamado(ticket_id: int, motivo: str) -> str:
-    """Recusa chamado (título/descrição incorretos) com motivo."""
+    """Recusa chamado (título/descrição incorretos) com motivo.
+
+    Não recuse por falta de resposta.
+    """
     try:
         return get_client().post_text(
             f'tickets/{ticket_id}/assistente/recusar/',

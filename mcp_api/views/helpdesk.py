@@ -142,7 +142,9 @@ def post_ticket_priority(request, pk):
 @requer_token_mcp
 def post_ticket_status(request, pk):
     data = _json_body(request)
-    return _service_response(set_ticket_status, pk, data.get('status', ''))
+    return _service_response(
+        set_ticket_status, pk, data.get('status', ''), via_assistente=True,
+    )
 
 
 @csrf_exempt

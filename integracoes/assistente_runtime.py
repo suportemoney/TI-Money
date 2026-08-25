@@ -189,7 +189,9 @@ TOOLS_SPEC = [
             'name': 'set_ticket_status',
             'description': (
                 'Altera status do Kanban. NÃO use PENDING (só TI após Em Atendimento). '
-                'Use RESOLVED só se o problema foi resolvido sem TI.'
+                'Use RESOLVED só se o solicitante/criador disse que já foi resolvido '
+                'ou pediu para fechar, ou se um membro TI (eh_membro_ti) pediu. '
+                'Nunca finalize por falta de resposta.'
             ),
             'parameters': {
                 'type': 'object',
@@ -242,6 +244,7 @@ TOOLS_SPEC = [
             'description': (
                 'Recusa o chamado quando título/descrição não correspondem ao problema real. '
                 'Exige motivo. NÃO use se a TI já reabriu ou está em atendimento. '
+                'NÃO recuse por falta de resposta. '
                 'Para desfazer recusa use limpar_recusa_chamado.'
             ),
             'parameters': {
@@ -1162,6 +1165,9 @@ def _system_prompt() -> str:
         '- Se já houver QUESTIONARIO_ABERTO no histórico, aguarde a resposta; não repita.\n'
         '- pedir_ajuda_ti só para dúvida operacional da TI (não para perguntar ao usuário).\n'
         '- NÃO use status PENDING.\n'
+        '- NÃO finalize nem recuse por falta de resposta (Novos/Pendente ou qualquer coluna). '
+        'RESOLVED só se o solicitante/criador disse que já foi resolvido/pediu fechar, '
+        'ou se um membro TI pediu.\n'
         '- Defina/atualize tag curta com definir_tag_chamado quando o tema estiver claro.\n'
         '- Pedido para mencionar alguém: consultar_usuario e use o username exato '
         '(@login) em send_assistente_message (interno se o pedido veio interno).\n'

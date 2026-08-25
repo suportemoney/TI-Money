@@ -96,7 +96,17 @@ def _url_chamado(ticket_id: int) -> str:
     return f'/helpdesk/?ticket={ticket_id}'
 
 
-def enviar_push_usuario(user, titulo: str, corpo: str, url: str, tag: str, tipo: str = '') -> None:
+def enviar_push_usuario(
+    user,
+    titulo: str,
+    corpo: str,
+    url: str,
+    tag: str,
+    tipo: str = '',
+    *,
+    is_interno: bool = False,
+    ticket_status: str = '',
+) -> None:
     """Envia push para todas as subscriptions ativas do usuário."""
     if not _vapid_configurado():
         return
@@ -113,6 +123,8 @@ def enviar_push_usuario(user, titulo: str, corpo: str, url: str, tag: str, tipo:
         'url': url,
         'tag': tag,
         'tipo': tipo or '',
+        'is_interno': bool(is_interno),
+        'ticket_status': ticket_status or '',
     })
 
     vapid_claims = {'sub': settings.VAPID_ADMIN_EMAIL}
@@ -161,10 +173,20 @@ def notificar_evento_chamado(
         ticket, actor, somente_nao_operadores=somente_nao_operadores,
     )
     for usuario in destinatarios:
-        enviar_push_usuario(usuario, titulo, corpo, url, tag, tipo=tipo)
+        enviar_push_usuario(
+            usuario, titulo, corpo, url, tag, tipo=tipo,
+            ticket_status=ticket.status,
+        )
 
 
-def notificar_usuarios_direto(ticket: Ticket, usuarios, tipo: str, mensagem: str) -> None:
+def notificar_usuarios_direto(
+    ticket: Ticket,
+    usuarios,
+    tipo: str,
+    mensagem: str,
+    *,
+    is_interno: bool = False,
+) -> None:
     """Push para lista explícita (ex.: mencões @) — ignora filtro TI↔TI."""
     titulo_base = _TITULOS_EVENTO.get(tipo, 'Atualização no helpdesk')
     titulo = f'{titulo_base}: #{ticket.pk}'
@@ -172,7 +194,11 @@ def notificar_usuarios_direto(ticket: Ticket, usuarios, tipo: str, mensagem: str
     url = _url_chamado(ticket.pk)
     tag = f'helpdesk-{ticket.pk}-{tipo}-{int(time.time() * 1000)}'
     for usuario in usuarios:
-        enviar_push_usuario(usuario, titulo, corpo, url, tag, tipo=tipo)
+        enviar_push_usuario(
+            usuario, titulo, corpo, url, tag, tipo=tipo,
+            is_interno=is_interno,
+            ticket_status=ticket.status,
+        )
 
 
 def agendar_notificacao_chamado(
@@ -212,16 +238,24 @@ def agendar_notificacao_chamado(
     transaction.on_commit(_disparar_async)
 
 
-def agendar_notificacao_mencoes(ticket: Ticket, usuarios, mensagem: str) -> None:
+def agendar_notificacao_mencoes(
+    ticket: Ticket,
+    usuarios,
+    mensagem: str,
+    *,
+    is_interno: bool = False,
+) -> None:
     """
     Agenda push de menção para usuários específicos após o commit.
 
     Sempre notifica quem foi @mencionado — inclusive outro membro TI / admin.
+    Som de menção no cliente é silenciado se is_interno ou chamado finalizado.
     """
     from django.db import transaction
 
     ticket_id = ticket.pk
     user_ids = [u.pk for u in usuarios if u is not None]
+    interno = bool(is_interno)
 
     if not user_ids:
         return
@@ -234,7 +268,10 @@ def agendar_notificacao_mencoes(ticket: Ticket, usuarios, mensagem: str) -> None
             ticket_atual = Ticket.objects.get(pk=ticket_id)
             users = list(CustomUser.objects.filter(pk__in=user_ids, is_active=True))
             if users:
-                notificar_usuarios_direto(ticket_atual, users, EVENTO_MENTION, mensagem)
+                notificar_usuarios_direto(
+                    ticket_atual, users, EVENTO_MENTION, mensagem,
+                    is_interno=interno,
+                )
         except Ticket.DoesNotExist:
             pass
         finally:
