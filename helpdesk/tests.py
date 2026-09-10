@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from core.models import CustomUser, Equipe
 from helpdesk.forms import TicketCreateForm, TicketUpdateForm
-from helpdesk.models import Ticket, TicketCategory, Comment, TicketContestation
+from helpdesk.models import HelpdeskRestrictionGroup, Ticket, TicketCategory, Comment, TicketContestation
 from helpdesk.ticket_access import (
     filtrar_chamados_para_usuario,
     usuario_pode_acessar_chamado,
@@ -19,7 +19,7 @@ class SupervisorRequesterTestCase(TestCase):
     def setUp(self):
         self.equipe1 = Equipe.objects.create(name="TI", is_active=True)
         self.equipe2 = Equipe.objects.create(name="Suporte", is_active=True)
-        self.categoria = TicketCategory.objects.get_or_create(name="D˙vidas", defaults={"is_active": True})[0]
+        self.categoria = TicketCategory.objects.get_or_create(name="Dùvidas", defaults={"is_active": True})[0]
 
         self.supervisor = CustomUser.objects.create_user(
             username="test_supervisor",
@@ -236,7 +236,7 @@ class ArquivamentoAutomaticoTestCase(TestCase):
         self.categoria = TicketCategory.objects.get_or_create(name="Rede", defaults={"is_active": True})[0]
 
     def test_arquiva_resolvido_apos_24h_por_resolved_at(self):
-        """Coment·rios n„o devem adiar arquivamento ? usa resolved_at, n„o updated_at."""
+        """Comentùrios nùo devem adiar arquivamento ? usa resolved_at, nùo updated_at."""
         ticket = Ticket.objects.create(
             title="Chamado antigo",
             description="Desc",
@@ -268,9 +268,9 @@ class ArquivamentoAutomaticoTestCase(TestCase):
         self.assertFalse(ticket.is_archived)
 
     def test_arquiva_mesmo_com_resolved_at_recente_se_comentario_antigo(self):
-        """resolved_at errado (updated_at recente) n„o deve impedir arquivamento."""
+        """resolved_at errado (updated_at recente) nùo deve impedir arquivamento."""
         ticket = Ticket.objects.create(
-            title="Finalizado h· dias",
+            title="Finalizado hù dias",
             description="Desc",
             category=self.categoria,
             requester_name="Teste",
@@ -279,7 +279,7 @@ class ArquivamentoAutomaticoTestCase(TestCase):
         )
         Comment.objects.create(
             ticket=ticket,
-            text='Chamado finalizado.\nObservaÁ„o: ok',
+            text='Chamado finalizado.\nObservaùùo: ok',
         )
         Comment.objects.filter(ticket=ticket).update(
             created_at=timezone.now() - timedelta(hours=30),
@@ -323,14 +323,14 @@ class HistoryExportCsvTestCase(TestCase):
         )
         self.ticket_novo = Ticket.objects.create(
             title="Impressora quebrada",
-            description="N„o imprime",
+            description="Nùo imprime",
             category=self.categoria,
-            requester_name="Jo„o Silva",
+            requester_name="Joùo Silva",
             status=Ticket.StatusChoices.NEW,
         )
         self.ticket_resolvido = Ticket.objects.create(
             title="VPN lenta",
-            description="Conex„o inst·vel",
+            description="Conexùo instùvel",
             category=self.categoria,
             requester_name="Maria",
             status=Ticket.StatusChoices.RESOLVED,
@@ -360,9 +360,9 @@ class HistoryExportCsvTestCase(TestCase):
         self.assertIn('text/csv', response['Content-Type'])
         self.assertIn('attachment', response['Content-Disposition'])
         conteudo = response.content.decode('utf-8-sig')
-        self.assertIn('ID;TÌtulo;DescriÁ„o;Solicitante', conteudo)
+        self.assertIn('ID;Tùtulo;Descriùùo;Solicitante', conteudo)
         self.assertIn('Impressora quebrada', conteudo)
-        self.assertIn('Jo„o Silva', conteudo)
+        self.assertIn('Joùo Silva', conteudo)
         self.assertIn('Hardware', conteudo)
 
     def test_supervisor_sem_permissao_export(self):
@@ -489,7 +489,7 @@ class HistoricoFiltroArquivadoTestCase(TestCase):
 
         response_p1 = self.client.get(url)
         self.assertEqual(response_p1.status_code, 200)
-        self.assertContains(response_p1, 'P·gina 1 de')
+        self.assertContains(response_p1, 'Pùgina 1 de')
         self.assertNotContains(response_p1, 'Arquivado antigo 0')
 
         response_p2 = self.client.get(f'{url}?page=2')
@@ -629,7 +629,7 @@ class ContestacaoChamadoTestCase(TestCase):
         self.assertEqual(contestacao.reason, 'Problema persiste')
         self.assertFalse(contestacao.was_rejected)
 
-        comentario = Comment.objects.filter(ticket=self.ticket, text__startswith='ContestaÁ„o do chamado').first()
+        comentario = Comment.objects.filter(ticket=self.ticket, text__startswith='Contestaùùo do chamado').first()
         self.assertIsNotNone(comentario)
         self.assertIn('Problema persiste', comentario.text)
         self.assertIn(self.it_user.get_full_name() or self.it_user.username, comentario.text)
@@ -642,7 +642,7 @@ class ContestacaoChamadoTestCase(TestCase):
         url = reverse('helpdesk:ticket_contest', args=[self.ticket.pk])
         response = self.client.post(
             url,
-            data=json.dumps({'reason': 'Tentativa inv·lida'}),
+            data=json.dumps({'reason': 'Tentativa invùlida'}),
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 403)
@@ -716,7 +716,7 @@ class MentionAccessTestCase(TestCase):
             username='mention_outro', password='pass', role=CustomUser.RoleChoices.STANDARD,
         )
         self.ticket = Ticket.objects.create(
-            title='Chamado menÁ„o',
+            title='Chamado menùùo',
             description='Desc',
             category=self.categoria,
             created_by=self.outro,
@@ -733,7 +733,7 @@ class MentionAccessTestCase(TestCase):
         comment = Comment.objects.create(
             ticket=self.ticket,
             author=self.admin,
-            text='Ol· @mention_alvo, pode verificar?',
+            text='Olù @mention_alvo, pode verificar?',
         )
         mencionados = processar_mencoes(self.ticket, comment, self.admin)
         self.assertEqual(len(mencionados), 1)
@@ -757,7 +757,7 @@ class MentionAccessTestCase(TestCase):
         self.assertFalse(usuario_pode_acessar_chamado(self.standard, self.ticket))
 
     def test_ti_menciona_outro_ti_entra_no_nao_lido(self):
-        """MenÁ„o TI?TI gera badge mesmo com silÍncio geral entre operadores."""
+        """Menùùo TI?TI gera badge mesmo com silùncio geral entre operadores."""
         from helpdesk.models import TicketUnread
         from helpdesk.views.kanban import adicionar_nao_lido
 
@@ -799,20 +799,20 @@ class FilaPosicaoTestCase(TestCase):
             status=status,
         )
         t.save()
-        # Ajusta pk via update sÛ se necess·rio ? usamos ordem natural dos ids criados
+        # Ajusta pk via update sù se necessùrio ? usamos ordem natural dos ids criados
         return t
 
     def test_ordem_exemplo_plano(self):
         from helpdesk.queue import calcular_posicoes_fila
 
-        # Cria na ordem dos n˙meros do exemplo (mais antigo primeiro)
+        # Cria na ordem dos nùmeros do exemplo (mais antigo primeiro)
         t123 = self._criar(123, Ticket.PriorityChoices.HIGH)
         t234 = self._criar(234, Ticket.PriorityChoices.LOW)
         t456 = self._criar(456, Ticket.PriorityChoices.MEDIUM)
         t567 = self._criar(567, Ticket.PriorityChoices.MEDIUM)
         t789 = self._criar(789, Ticket.PriorityChoices.URGENT)
 
-        # Garante pks relativos iguais ‡ ordem de criaÁ„o
+        # Garante pks relativos iguais ù ordem de criaùùo
         tickets = [t123, t234, t456, t567, t789]
         self.assertEqual(
             [t.pk for t in tickets],
@@ -820,7 +820,7 @@ class FilaPosicaoTestCase(TestCase):
         )
 
         posicoes = calcular_posicoes_fila(tickets)
-        # Urgente (˙ltimo criado = maior pk) em 1∫; depois High; Medias por pk; Low por ˙ltimo
+        # Urgente (ùltimo criado = maior pk) em 1ù; depois High; Medias por pk; Low por ùltimo
         ordem = sorted(tickets, key=lambda t: posicoes[t.pk])
         self.assertEqual(
             [t.priority for t in ordem],
@@ -849,8 +849,8 @@ class FilaPosicaoTestCase(TestCase):
 
     def test_em_atendimento_pesa_mais_que_novo(self):
         """
-        Novo: 123 MÈdia, 125 Alta, 126 Baixa
-        Em Atendimento: 124 MÈdia, 120 Alta, 127 Urgente
+        Novo: 123 Mùdia, 125 Alta, 126 Baixa
+        Em Atendimento: 124 Mùdia, 120 Alta, 127 Urgente
         Ordem: 127, 120, 124, 125, 123, 126
         """
         from helpdesk.queue import calcular_posicoes_fila
@@ -871,7 +871,7 @@ class FilaPosicaoTestCase(TestCase):
         )
 
     def test_posicao_global_igual_para_usuario_com_visao_filtrada(self):
-        """Usu·rio padr„o vÍ sÛ o prÛprio card, mas a posiÁ„o È a da fila global."""
+        """Usuùrio padrùo vù sù o prùprio card, mas a posiùùo ù a da fila global."""
         from helpdesk.queue import aplicar_posicoes_fila, calcular_posicoes_fila_global
 
         outros = [
@@ -881,17 +881,16 @@ class FilaPosicaoTestCase(TestCase):
         meu = self._criar(99, Ticket.PriorityChoices.LOW)
 
         posicoes_globais = calcular_posicoes_fila_global()
-        # SÛ o card do usu·rio na lista ?visÌvel?
+        # Sù o card do usuùrio na lista ?visùvel?
         aplicar_posicoes_fila([meu], [])
         self.assertEqual(meu.queue_position, posicoes_globais[meu.pk])
         self.assertEqual(meu.queue_position, len(outros) + 1)
 
 
-class ChamadoRestritoCriador25TestCase(TestCase):
-    """Chamados do criador restrito sÛ aparecem para o TI exclusivo (e stakeholders)."""
+class ChamadoRestritoGrupoTestCase(TestCase):
+    """Chamados de usuarios em grupos de restricao so aparecem para os visualizadores (e stakeholders)."""
 
     def setUp(self):
-        from unittest.mock import patch
         self.categoria = TicketCategory.objects.get_or_create(name='Cat Restrito', defaults={"is_active": True})[0]
         self.criador = CustomUser.objects.create_user(
             username='criador_restrito', password='pass', role=CustomUser.RoleChoices.STANDARD,
@@ -913,15 +912,9 @@ class ChamadoRestritoCriador25TestCase(TestCase):
             requester_user=self.criador,
             requester_name='Criador',
         )
-        self._patcher = patch.multiple(
-            'helpdesk.ticket_access',
-            CRIADOR_CHAMADOS_RESTRITOS_ID=self.criador.pk,
-            TI_VISUALIZADOR_EXCLUSIVO_ID=self.ti_exclusivo.pk,
-        )
-        self._patcher.start()
-
-    def tearDown(self):
-        self._patcher.stop()
+        self.grupo = HelpdeskRestrictionGroup.objects.create(nome='Grupo 1', ativo=True)
+        self.grupo.usuarios_restritos.add(self.criador)
+        self.grupo.visualizadores.add(self.ti_exclusivo)
 
     def test_ti_exclusivo_ve_e_outro_ti_nao(self):
         self.assertTrue(usuario_pode_acessar_chamado(self.ti_exclusivo, self.ticket))
@@ -937,7 +930,7 @@ class ChamadoRestritoCriador25TestCase(TestCase):
         self.assertTrue(usuario_pode_acessar_chamado(self.criador, self.ticket))
 
     def test_solicitante_restrito_mesmo_com_outro_criador(self):
-        """User 25 como solicitante tambÈm esconde o chamado dos outros TI."""
+        """User 25 como solicitante tambùm esconde o chamado dos outros TI."""
         outro_user = CustomUser.objects.create_user(
             username='abre_para_restrito', password='pass', role=CustomUser.RoleChoices.STANDARD,
         )
@@ -957,13 +950,69 @@ class ChamadoRestritoCriador25TestCase(TestCase):
         qs_outro = filtrar_chamados_para_usuario(Ticket.objects.all(), self.outro_ti)
         self.assertNotIn(ticket, qs_outro)
 
+    def test_dois_grupos_independentes(self):
+        """TI do grupo 1 nao ve chamados do grupo 2 e vice-versa."""
+        criador2 = CustomUser.objects.create_user(
+            username='criador_grupo2', password='pass', role=CustomUser.RoleChoices.STANDARD,
+        )
+        ti_grupo2 = CustomUser.objects.create_user(
+            username='ti_grupo2', password='pass', role=CustomUser.RoleChoices.IT_USER,
+        )
+        ticket2 = Ticket.objects.create(
+            title='Chamado grupo 2',
+            description='d',
+            category=self.categoria,
+            created_by=criador2,
+            requester_user=criador2,
+            requester_name='Grupo 2',
+        )
+        grupo2 = HelpdeskRestrictionGroup.objects.create(nome='Grupo 2', ativo=True)
+        grupo2.usuarios_restritos.add(criador2)
+        grupo2.visualizadores.add(ti_grupo2)
+
+        self.assertTrue(usuario_pode_acessar_chamado(self.ti_exclusivo, self.ticket))
+        self.assertFalse(usuario_pode_acessar_chamado(self.ti_exclusivo, ticket2))
+        self.assertTrue(usuario_pode_acessar_chamado(ti_grupo2, ticket2))
+        self.assertFalse(usuario_pode_acessar_chamado(ti_grupo2, self.ticket))
+
+        qs_ti1 = filtrar_chamados_para_usuario(Ticket.objects.all(), self.ti_exclusivo)
+        qs_ti2 = filtrar_chamados_para_usuario(Ticket.objects.all(), ti_grupo2)
+        self.assertIn(self.ticket, qs_ti1)
+        self.assertNotIn(ticket2, qs_ti1)
+        self.assertIn(ticket2, qs_ti2)
+        self.assertNotIn(self.ticket, qs_ti2)
+
+    def test_grupo_inativo_ou_listas_vazias_nao_restringe(self):
+        self.grupo.ativo = False
+        self.grupo.save(update_fields=['ativo'])
+        self.assertTrue(usuario_pode_acessar_chamado(self.outro_ti, self.ticket))
+
+        self.grupo.ativo = True
+        self.grupo.save(update_fields=['ativo'])
+        self.grupo.visualizadores.clear()
+        self.assertTrue(usuario_pode_acessar_chamado(self.outro_ti, self.ticket))
+
+        self.grupo.visualizadores.add(self.ti_exclusivo)
+        self.grupo.usuarios_restritos.clear()
+        self.assertTrue(usuario_pode_acessar_chamado(self.outro_ti, self.ticket))
+
+    def test_mesmo_user_em_dois_grupos_une_visualizadores(self):
+        self.grupo.visualizadores.add(self.outro_ti)
+        grupo_extra = HelpdeskRestrictionGroup.objects.create(nome='Grupo extra', ativo=True)
+        grupo_extra.usuarios_restritos.add(self.criador)
+        grupo_extra.visualizadores.add(self.admin)
+
+        self.assertTrue(usuario_pode_acessar_chamado(self.ti_exclusivo, self.ticket))
+        self.assertTrue(usuario_pode_acessar_chamado(self.outro_ti, self.ticket))
+        self.assertTrue(usuario_pode_acessar_chamado(self.admin, self.ticket))
+
 
 class AssistenteContextualTestCase(TestCase):
-    """Testes dos ajustes: menÁ„o, tags, PENDING, histÛrico, Central, presenÁa."""
+    """Testes dos ajustes: menùùo, tags, PENDING, histùrico, Central, presenùa."""
 
     def setUp(self):
         self.categoria = TicketCategory.objects.get_or_create(
-            name='D˙vidas', defaults={'is_active': True},
+            name='Dùvidas', defaults={'is_active': True},
         )[0]
         self.ti = CustomUser.objects.create_user(
             username='ti_ctx', password='pass', role=CustomUser.RoleChoices.IT_USER,
@@ -1019,7 +1068,7 @@ class AssistenteContextualTestCase(TestCase):
         Comment.objects.create(
             ticket=self.ticket,
             author=self.user,
-            text='J· foi resolvido, pode fechar o chamado.',
+            text='Jù foi resolvido, pode fechar o chamado.',
             is_interno=False,
         )
         r = set_ticket_status(self.ticket.pk, 'RESOLVED', via_assistente=True)
@@ -1056,7 +1105,7 @@ class AssistenteContextualTestCase(TestCase):
         self.assertTrue(r['ok'])
         self.assertTrue(self.ticket.assistente_escalado)
         self.assertEqual(self.ticket.status, Ticket.StatusChoices.NEW)
-        # P˙blico breve + interno detalhado
+        # Pùblico breve + interno detalhado
         pubs = Comment.objects.filter(
             ticket=self.ticket, is_assistente=True, is_interno=False,
         )
@@ -1071,9 +1120,9 @@ class AssistenteContextualTestCase(TestCase):
 
     def test_antirrepeticao_mensagem_publica(self):
         from helpdesk.assistente_services import AssistenteServiceError, send_assistente_message
-        send_assistente_message(self.ticket.pk, 'J· verifiquei o acesso do usu·rio.')
+        send_assistente_message(self.ticket.pk, 'Jù verifiquei o acesso do usuùrio.')
         with self.assertRaises(AssistenteServiceError):
-            send_assistente_message(self.ticket.pk, 'J· verifiquei o acesso do usu·rio.')
+            send_assistente_message(self.ticket.pk, 'Jù verifiquei o acesso do usuùrio.')
 
     def test_historico_15_5_5(self):
         from integracoes.assistente_runtime import _selecionar_historico_recente
@@ -1142,12 +1191,12 @@ class AssistenteContextualTestCase(TestCase):
         from helpdesk.assistente_services import AssistenteServiceError, send_assistente_message
         texto = (
             'Preciso que o comando venha em mensagem INTERNA com @assistente '
-            'para eu criar o chip e transferir para o usu·rio solicitante.'
+            'para eu criar o chip e transferir para o usuùrio solicitante.'
         )
         send_assistente_message(self.ticket.pk, texto, interno=True)
         with self.assertRaises(AssistenteServiceError):
             send_assistente_message(self.ticket.pk, texto, interno=True)
-        # VariaÁ„o mÌnima de redaÁ„o tambÈm È bloqueada
+        # Variaùùo mùnima de redaùùo tambùm ù bloqueada
         with self.assertRaises(AssistenteServiceError):
             send_assistente_message(
                 self.ticket.pk, texto.replace('Preciso que', 'Por favor,'), interno=True,
@@ -1166,7 +1215,7 @@ class AssistenteContextualTestCase(TestCase):
         self.assertTrue(listar_operadoras_chips()['count'] >= 1)
         with self.assertRaises(AssistenteServiceError) as ctx:
             _resolver_operadora_chip(9999, 'Inexistente')
-        # Erro deve listar as opÁıes para a IA n„o pedir id ‡ TI
+        # Erro deve listar as opùùes para a IA nùo pedir id ù TI
         self.assertIn('TIM', str(ctx.exception))
 
     def test_autorizacao_chip_persiste_em_sessao(self):
@@ -1187,7 +1236,7 @@ class AssistenteContextualTestCase(TestCase):
         self.assertTrue(self.ticket.assistente_chip_autorizado)
         self.assertEqual(self.ticket.assistente_chip_auth_por_id, self.ti.pk)
 
-        # Complemento interno sem @assistente mantÈm a autorizaÁ„o
+        # Complemento interno sem @assistente mantùm a autorizaùùo
         c2 = Comment.objects.create(
             ticket=self.ticket, author=self.ti, text='usar operadora TIM', is_interno=True,
         )
@@ -1212,7 +1261,7 @@ class AssistenteContextualTestCase(TestCase):
         self.assertIsNone(thinking_payload_para_provedor(IntegracaoIA.Provider.CHATGPT))
 
     def test_mencao_interna_fallback_quando_llm_falha(self):
-        """@assistente interno n„o pode ficar mudo se a IA falhar (ex.: thinking V4)."""
+        """@assistente interno nùo pode ficar mudo se a IA falhar (ex.: thinking V4)."""
         from unittest.mock import patch
 
         from integracoes.assistente_runtime import processar_assistente
@@ -1281,7 +1330,7 @@ class AssistenteContextualTestCase(TestCase):
         r = send_assistente_message(
             self.ticket.pk,
             '@leticia e-mail vitoriacamargo.moneypromotora@gmail.com '
-            'n˙mero (51) 98219-0991.',
+            'nùmero (51) 98219-0991.',
             interno=True,
         )
         self.assertIn('leticia', r.get('mencionados') or [])
@@ -1320,18 +1369,18 @@ class AssistenteContextualTestCase(TestCase):
 
 
 class AssistenteQuestionarioTestCase(TestCase):
-    """Question·rio com opÁıes e esclarecimento p˙blico longo."""
+    """Questionùrio com opùùes e esclarecimento pùblico longo."""
 
     def setUp(self):
         self.categoria = TicketCategory.objects.get_or_create(
-            name='D˙vidas', defaults={'is_active': True},
+            name='Dùvidas', defaults={'is_active': True},
         )[0]
         self.user = CustomUser.objects.create_user(
             username='user_q', password='pass', role=CustomUser.RoleChoices.STANDARD,
         )
         self.ticket = Ticket.objects.create(
             title='Sem internet',
-            description='N„o entra no sistema',
+            description='Nùo entra no sistema',
             category=self.categoria,
             created_by=self.user,
             requester_user=self.user,
@@ -1343,7 +1392,7 @@ class AssistenteQuestionarioTestCase(TestCase):
 
         r = enviar_pergunta_opcoes(
             self.ticket.pk,
-            'Qual È o problema?',
+            'Qual ù o problema?',
             ['Sem internet', 'Senha bloqueada', 'Outro'],
             contexto_curto='Para eu te ajudar melhor:',
         )
@@ -1356,7 +1405,7 @@ class AssistenteQuestionarioTestCase(TestCase):
         self.assertEqual(payload['status'], 'aberto')
         self.assertEqual(len(payload['opcoes']), 3)
         self.assertEqual(payload['opcoes'][0]['id'], 'a')
-        self.assertIn('Qual È o problema?', comment.text)
+        self.assertIn('Qual ù o problema?', comment.text)
 
     def test_responder_opcao_valida_e_invalida(self):
         from helpdesk.assistente_services import (
@@ -1381,7 +1430,7 @@ class AssistenteQuestionarioTestCase(TestCase):
 
         resposta = Comment.objects.get(pk=ok['resposta_comment_id'])
         self.assertEqual(resposta.author_id, self.user.pk)
-        self.assertIn('OpÁ„o selecionada: B', resposta.text)
+        self.assertIn('Opùùo selecionada: B', resposta.text)
         self.assertIn('Acesso', resposta.text)
 
         with self.assertRaises(AssistenteServiceError):
@@ -1390,7 +1439,7 @@ class AssistenteQuestionarioTestCase(TestCase):
         r2 = enviar_pergunta_opcoes(
             self.ticket.pk,
             'Nova pergunta',
-            ['Sim', 'N„o'],
+            ['Sim', 'Nùo'],
         )
         comment2 = Comment.objects.get(pk=r2['comment_id'])
         with self.assertRaises(AssistenteServiceError):
@@ -1401,26 +1450,26 @@ class AssistenteQuestionarioTestCase(TestCase):
 
         longo = (
             'Para eu entender o caso, preciso de mais detalhes. '
-            'Descreva o hor·rio em que o erro aparece, se h· mensagem na tela, '
-            'se outros colegas na mesma loja tambÈm s„o afetados e se j· tentou '
+            'Descreva o horùrio em que o erro aparece, se hù mensagem na tela, '
+            'se outros colegas na mesma loja tambùm sùo afetados e se jù tentou '
             'reiniciar o computador. '
         ) * 4
         self.assertGreater(len(longo), 280)
         r = enviar_esclarecimento(
             self.ticket.pk,
             longo,
-            lacunas=['hor·rio do erro', 'mensagem na tela'],
+            lacunas=['horùrio do erro', 'mensagem na tela'],
         )
         self.assertTrue(r['ok'])
         comment = Comment.objects.get(pk=r['comment_id'])
         self.assertEqual(comment.structured_payload['type'], 'esclarecimento')
         self.assertGreater(len(comment.text), 280)
         self.assertLessEqual(len(comment.text), 1400)
-        self.assertIn('hor·rio do erro', comment.text)
+        self.assertIn('horùrio do erro', comment.text)
 
 
 class ConsultarChipsTitularTestCase(TestCase):
-    """Busca por titular atual (TRANSFER) e n˙mero com DDI."""
+    """Busca por titular atual (TRANSFER) e nùmero com DDI."""
 
     def setUp(self):
         from chips.models import Batch, Chip, ChipMovement, Operator

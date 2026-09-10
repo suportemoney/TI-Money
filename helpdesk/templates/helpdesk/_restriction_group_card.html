@@ -1,0 +1,90 @@
+<article id="grupo-card-{{ grupo.pk }}" class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+    <form hx-post="{% url 'helpdesk:restriction_group_update' grupo.pk %}"
+          hx-target="#grupo-card-{{ grupo.pk }}"
+          hx-swap="outerHTML"
+          class="p-5 space-y-4">
+        {% csrf_token %}
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex-1 min-w-[180px]">
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1" for="{{ form.nome.id_for_label }}">Nome do grupo</label>
+                {{ form.nome }}
+            </div>
+            <label class="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer pt-5">
+                {{ form.ativo }}
+                <span>Restringir chamados</span>
+            </label>
+            <button type="button"
+                    hx-post="{% url 'helpdesk:restriction_group_delete' grupo.pk %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-target="#restriction-groups"
+                    hx-swap="innerHTML"
+                    hx-confirm="Excluir este grupo de restrição?"
+                    class="pt-5 text-sm font-medium text-red-600 hover:text-red-700">
+                Excluir
+            </button>
+        </div>
+
+        {% if mensagem %}
+        <p class="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{{ mensagem }}</p>
+        {% endif %}
+        {% if erros %}
+        <ul class="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 list-disc list-inside">
+            {% for erro in erros %}
+            <li>{{ erro }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <p class="text-xs text-slate-500">
+            Com a flag ligada, os chamados dos usuários marcados só aparecem para os visualizadores deste grupo.
+            Grupo ativo sem usuários ou sem visualizadores é ignorado.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="border border-slate-200 rounded-lg overflow-hidden" data-lista-restricao>
+                <div class="px-3 py-2 bg-slate-50 border-b border-slate-200">
+                    <h4 class="text-sm font-semibold text-slate-800">Usuários restritos</h4>
+                    <input type="search"
+                           placeholder="Buscar usuário..."
+                           oninput="filtrarListaRestricao(this)"
+                           class="mt-2 w-full text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div class="max-h-56 overflow-y-auto p-2 space-y-0.5">
+                    {% for checkbox in form.usuarios_restritos %}
+                    <label data-busca="{{ checkbox.choice_label|lower }}" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                        {{ checkbox.tag }}
+                        <span class="text-sm text-slate-700">{{ checkbox.choice_label }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="text-xs text-slate-500 px-2 py-2">Nenhum usuário ativo.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="border border-slate-200 rounded-lg overflow-hidden" data-lista-restricao>
+                <div class="px-3 py-2 bg-slate-50 border-b border-slate-200">
+                    <h4 class="text-sm font-semibold text-slate-800">Visualizadores (TI / staff / superuser)</h4>
+                    <input type="search"
+                           placeholder="Buscar membro TI..."
+                           oninput="filtrarListaRestricao(this)"
+                           class="mt-2 w-full text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div class="max-h-56 overflow-y-auto p-2 space-y-0.5">
+                    {% for checkbox in form.visualizadores %}
+                    <label data-busca="{{ checkbox.choice_label|lower }}" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                        {{ checkbox.tag }}
+                        <span class="text-sm text-slate-700">{{ checkbox.choice_label }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="text-xs text-slate-500 px-2 py-2">Nenhum visualizador disponível.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+                Salvar grupo
+            </button>
+        </div>
+    </form>
+</article>

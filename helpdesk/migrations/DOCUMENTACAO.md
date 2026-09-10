@@ -18,3 +18,4 @@ Versiona tabelas `Ticket` e `Comment` e campos adicionais (ex.: arquivamento).
 | `0006_ticket_priority_nullable.py` | Prioridade nullable (triagem pela TI). |
 | `0007_ticket_description_required.py` | Descrição obrigatória no chamado. |
 | `0015_ticket_co_authors.py` | M2M `co_authors` — co-autores com acesso e comentário. |
+| `0032_helpdeskrestrictiongroup.py` | Grupos de restrição de visibilidade + seed legado user 25 → TI 2. |

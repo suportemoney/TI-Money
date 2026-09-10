@@ -13,6 +13,13 @@ urlpatterns = [
     # Histórico e Filtros
     path('history/', views.HistoryListView.as_view(), name='history'),
     path('history/export/', views.history_export_csv, name='history_export'),
+
+    # Configurações — grupos de restrição de chamados
+    path('settings/', views.HelpdeskSettingsView.as_view(), name='settings'),
+    path('settings/grupo/create/', views.restriction_group_create, name='restriction_group_create'),
+    path('settings/grupo/<int:pk>/', views.restriction_group_update, name='restriction_group_update'),
+    path('settings/grupo/<int:pk>/delete/', views.restriction_group_delete, name='restriction_group_delete'),
+
     
     # Gerenciamento de Categorias
     path('categories/', views.CategoriesManageView.as_view(), name='categories'),

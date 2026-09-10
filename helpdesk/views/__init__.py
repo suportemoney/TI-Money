@@ -6,3 +6,4 @@ from .categories import *
 from .push import *
 from .informative import *
 from .presence import *
+from .settings import *

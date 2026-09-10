@@ -1,0 +1,12 @@
+{% if mensagem %}
+<p class="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{{ mensagem }}</p>
+{% endif %}
+{% if itens %}
+{% for item in itens %}
+    {% include "helpdesk/_restriction_group_card.html" with grupo=item.grupo form=item.form %}
+{% endfor %}
+{% else %}
+<p class="text-sm text-slate-500 bg-white border border-slate-200 rounded-xl px-4 py-6 text-center">
+    Nenhum grupo ainda. Clique em <strong>Adicionar grupo</strong> para restringir chamados.
+</p>
+{% endif %}

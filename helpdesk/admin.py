@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from helpdesk.models import (
     Comment,
+    HelpdeskRestrictionGroup,
     PushSubscription,
     Ticket,
     TicketAttachment,
@@ -87,3 +88,12 @@ class PushSubscriptionAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'endpoint')
     readonly_fields = ('created_at',)
     autocomplete_fields = ('user',)
+
+
+@admin.register(HelpdeskRestrictionGroup)
+class HelpdeskRestrictionGroupAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'ativo', 'created_at', 'updated_at')
+    list_filter = ('ativo',)
+    search_fields = ('nome',)
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('usuarios_restritos', 'visualizadores')

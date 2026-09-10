@@ -16,6 +16,8 @@ Via `helpdesk/context_processors.py`:
 
 No drawer: `pode_comentar` (por chamado).
 
+Aba **Configurações** (`settings.html`): visível para `eh_operador_helpdesk`. CRUD de `HelpdeskRestrictionGroup` (flag restringir, usuários e visualizadores TI).
+
 ## Destaque do solicitante
 
 - `_ticket_card.html`: nome em `font-semibold text-blue-700`, descrição separada
@@ -30,8 +32,11 @@ No drawer: `pode_comentar` (por chamado).
 | `_ticket_card.html` | Card com solicitante em destaque. |
 | `_drawer.html` | Detalhes; comentário condicional via `pode_comentar`. |
 | `_ticket_create_modal.html` | Modal — campos por papel incl. co-autor (MULTIPLIER). |
-| `_nav.html` | Nav interna; dashboard/histórico via `pode_acessar_dashboard_helpdesk`. |
+| `_nav.html` | Nav interna; dashboard/histórico via `pode_acessar_dashboard_helpdesk`; Configurações para operadores. |
 | `history.html` | Histórico com solicitante destacado. |
+| `settings.html` | Grupos de restrição de chamados. |
+| `_restriction_groups.html` | Lista HTMX dos grupos. |
+| `_restriction_group_card.html` | Card de um grupo (flag, usuários, visualizadores). |
 
 ## Convenção
 

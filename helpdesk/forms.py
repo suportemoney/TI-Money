@@ -2,7 +2,7 @@ from django import forms
 from django.utils.safestring import mark_safe
 
 from core.models import CustomUser
-from helpdesk.models import Ticket, TicketCategory, validate_file_attachment
+from helpdesk.models import HelpdeskRestrictionGroup, Ticket, TicketCategory, validate_file_attachment
 from helpdesk.ticket_access import (
     buscar_membro_equipe_por_nome,
     usuario_pode_definir_prioridade,
@@ -453,3 +453,42 @@ class TicketUpdateForm(forms.ModelForm):
         if commit:
             ticket.save()
         return ticket
+
+
+class HelpdeskRestrictionGroupForm(forms.ModelForm):
+    """Formulário de um grupo de restrição de visibilidade de chamados."""
+
+    class Meta:
+        model = HelpdeskRestrictionGroup
+        fields = ['nome', 'ativo', 'usuarios_restritos', 'visualizadores']
+        widgets = {
+            'nome': forms.TextInput(attrs={
+                'class': INPUT_CLASS,
+                'placeholder': 'Ex.: Grupo 1',
+            }),
+            'ativo': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500',
+            }),
+            'usuarios_restritos': forms.CheckboxSelectMultiple(attrs={
+                'class': 'h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500',
+            }),
+            'visualizadores': forms.CheckboxSelectMultiple(attrs={
+                'class': 'h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from helpdesk.ticket_access import (
+            usuarios_ativos_para_restricao,
+            usuarios_visualizadores_restricao,
+        )
+
+        self.fields['nome'].required = True
+        self.fields['usuarios_restritos'].required = False
+        self.fields['usuarios_restritos'].queryset = usuarios_ativos_para_restricao()
+        self.fields['usuarios_restritos'].label_from_instance = TicketCreateForm._rotulo_usuario
+        self.fields['visualizadores'].required = False
+        self.fields['visualizadores'].queryset = usuarios_visualizadores_restricao()
+        self.fields['visualizadores'].label_from_instance = TicketCreateForm._rotulo_usuario
+        self.fields['ativo'].label = 'Restringir chamados'

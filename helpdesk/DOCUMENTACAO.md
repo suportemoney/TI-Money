@@ -32,6 +32,8 @@ Registrar tickets (título, prioridade, categoria, solicitante, co-autores), mov
 
 **Django Admin:** apenas `is_superuser` (`is_staff=True`). Demais papéis não devem ter acesso ao admin.
 
+**Grupos de restrição** (`HelpdeskRestrictionGroup`): aba Configurações. Chamados cujo criador ou solicitante está num grupo ativo só aparecem para os visualizadores daquele grupo (TI/staff/superuser) e para stakeholders. Vários grupos são independentes.
+
 Implementação central: `ticket_access.py`. Skill do agente: `.agent/skills/rbac-helpdesk/SKILL.md`.
 
 ## Arquivos
@@ -39,9 +41,9 @@ Implementação central: `ticket_access.py`. Skill do agente: `.agent/skills/rba
 | Arquivo | Função |
 |---------|--------|
 | `apps.py` | Configuração do app. |
-| `models.py` | `TicketCategory`, `Ticket` (status Kanban, prioridade nullable, arquivamento, `created_by`, `requester_user`, `co_authors`, `resolved_by`) e `Comment`, `TicketContestation`. |
-| `forms.py` | `TicketCreateForm` (campos por papel) e `TicketUpdateForm` (edição). |
-| `ticket_access.py` | Filtro de chamados, permissões por papel, co-autores. |
+| `models.py` | `TicketCategory`, `Ticket`, `Comment`, `HelpdeskRestrictionGroup` (grupos de restrição de visibilidade). |
+| `forms.py` | `TicketCreateForm`, `TicketUpdateForm` e `HelpdeskRestrictionGroupForm`. |
+| `ticket_access.py` | Filtro de chamados, permissões por papel, grupos de restrição. |
 | `context_processors.py` | Flags `eh_operador_helpdesk`, `pode_operar_kanban`, `pode_acessar_dashboard_helpdesk`. |
 | `audit.py` | Wrappers de `registrar_acao` para eventos do helpdesk. |
 | `urls.py` | Rotas sob `/helpdesk/`. |

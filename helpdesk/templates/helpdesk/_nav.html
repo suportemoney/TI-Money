@@ -10,6 +10,11 @@
     <a href="{% url 'helpdesk:history' %}" class="pb-3 text-sm font-semibold transition-colors {% if request.resolver_match.url_name == 'history' %}text-blue-600 border-b-2 border-blue-600{% else %}text-slate-500 hover:text-slate-800{% endif %}">
         Histórico
     </a>
+    {% if eh_operador_helpdesk %}
+    <a href="{% url 'helpdesk:settings' %}" class="pb-3 text-sm font-semibold transition-colors {% if request.resolver_match.url_name == 'settings' %}text-blue-600 border-b-2 border-blue-600{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+        Configurações
+    </a>
+    {% endif %}
     <button type="button"
             id="helpdesk-push-toggle"
             class="hidden ml-auto pb-3 flex items-center gap-2.5 cursor-pointer select-none"

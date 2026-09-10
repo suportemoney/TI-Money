@@ -8,10 +8,6 @@ from django.db.models import Q, QuerySet
 
 from core.models import CustomUser
 
-# Chamados em que este usuário é criador OU solicitante: só o TI abaixo vê (além dos stakeholders).
-CRIADOR_CHAMADOS_RESTRITOS_ID = 25
-TI_VISUALIZADOR_EXCLUSIVO_ID = 2
-
 
 def _role(user) -> Optional[str]:
     if not user or not user.is_authenticated:
@@ -19,44 +15,59 @@ def _role(user) -> Optional[str]:
     return getattr(user, 'role', None)
 
 
-def _eh_ti_visualizador_exclusivo(user) -> bool:
-    return bool(user and getattr(user, 'pk', None) == TI_VISUALIZADOR_EXCLUSIVO_ID)
-
-
-def _q_chamado_restrito() -> Q:
-    """Restrito se o user 25 for quem abriu ou o solicitante vinculado."""
-    return (
-        Q(created_by_id=CRIADOR_CHAMADOS_RESTRITOS_ID)
-        | Q(requester_user_id=CRIADOR_CHAMADOS_RESTRITOS_ID)
-    )
-
-
-def _chamado_eh_restrito(ticket) -> bool:
-    return (
-        ticket.created_by_id == CRIADOR_CHAMADOS_RESTRITOS_ID
-        or ticket.requester_user_id == CRIADOR_CHAMADOS_RESTRITOS_ID
-    )
-
-
-def _filtro_excluir_chamados_restritos_para(user) -> Q:
+def carregar_mapa_restricao() -> dict:
     """
-    Remove chamados restritos (criador ou solicitante = user 25),
-    exceto se o user for stakeholder (criador, solicitante ou co-autor).
-    O TI exclusivo não usa este filtro.
+    Mapa user_id restrito -> união dos visualizadores dos grupos ativos e válidos.
+    Grupo sem usuários ou sem visualizadores é ignorado.
     """
-    return (
-        ~_q_chamado_restrito()
-        | Q(created_by=user)
-        | Q(requester_user=user)
-        | Q(co_authors=user)
+    from helpdesk.models import HelpdeskRestrictionGroup
+
+    mapa = {}
+    grupos = HelpdeskRestrictionGroup.objects.filter(ativo=True).prefetch_related(
+        'usuarios_restritos',
+        'visualizadores',
     )
+    for grupo in grupos:
+        usuarios = {u.pk for u in grupo.usuarios_restritos.all()}
+        visualizadores = {v.pk for v in grupo.visualizadores.all()}
+        if not usuarios or not visualizadores:
+            continue
+        for uid in usuarios:
+            mapa.setdefault(uid, set()).update(visualizadores)
+    return mapa
 
 
-def _aplicar_restricao_criador_25(queryset: QuerySet, user) -> QuerySet:
-    """Chamados do user 25 (criador/solicitante): só TI id 2; stakeholders mantêm acesso."""
-    if _eh_ti_visualizador_exclusivo(user):
+def _visualizadores_permitidos_do_chamado(ticket) -> Optional[set]:
+    """
+    None = chamado não restrito.
+    set (pode ser vazio) = só esses pks veem, além dos stakeholders.
+    Interseção quando criador e solicitante pertencem a grupos diferentes.
+    """
+    mapa = carregar_mapa_restricao()
+    conjuntos = []
+    for uid in (ticket.created_by_id, ticket.requester_user_id):
+        if uid and uid in mapa:
+            conjuntos.append(mapa[uid])
+    if not conjuntos:
+        return None
+    permitido = set(conjuntos[0])
+    for extra in conjuntos[1:]:
+        permitido &= extra
+    return permitido
+
+
+def _aplicar_restricao_chamados(queryset: QuerySet, user) -> QuerySet:
+    """Oculta chamados restritos cujo visualizador permitido não inclui o user (stakeholders ficam)."""
+    mapa = carregar_mapa_restricao()
+    if not mapa:
         return queryset
-    ids = queryset.filter(_filtro_excluir_chamados_restritos_para(user)).values_list('pk', flat=True).distinct()
+    user_id = getattr(user, 'pk', None)
+    usuarios_ocultos = [uid for uid, viewers in mapa.items() if user_id not in viewers]
+    if not usuarios_ocultos:
+        return queryset
+    q_ocultar = Q(created_by_id__in=usuarios_ocultos) | Q(requester_user_id__in=usuarios_ocultos)
+    q_stakeholder = Q(created_by=user) | Q(requester_user=user) | Q(co_authors=user)
+    ids = queryset.filter(~q_ocultar | q_stakeholder).values_list('pk', flat=True).distinct()
     return queryset.filter(pk__in=ids)
 
 
@@ -81,6 +92,29 @@ def usuario_pode_ver_arquivados(user) -> bool:
 
 def usuario_pode_gerenciar_categorias(user) -> bool:
     return usuario_eh_operador_helpdesk(user)
+
+
+def usuario_pode_gerenciar_configuracoes(user) -> bool:
+    """Aba Configurações: mesmos operadores que gerenciam categorias."""
+    return usuario_eh_operador_helpdesk(user)
+
+
+def usuarios_ativos_para_restricao() -> QuerySet:
+    """Usuários ativos que podem ser marcados como restritos."""
+    return CustomUser.objects.filter(is_active=True).order_by(
+        'first_name', 'last_name', 'username',
+    )
+
+
+def usuarios_visualizadores_restricao() -> QuerySet:
+    """Membros TI, admin, staff ou superuser ativos — visualizadores dos grupos."""
+    return CustomUser.objects.filter(
+        is_active=True,
+    ).filter(
+        Q(role__in=[CustomUser.RoleChoices.ADMIN, CustomUser.RoleChoices.IT_USER])
+        | Q(is_staff=True)
+        | Q(is_superuser=True)
+    ).distinct().order_by('first_name', 'last_name', 'username')
 
 
 def usuario_pode_definir_prioridade(user) -> bool:
@@ -168,7 +202,7 @@ def _filtro_chamados_equipe(user) -> Q:
 def filtrar_chamados_para_usuario(queryset: QuerySet, user) -> QuerySet:
     """Restringe queryset conforme papel do usuário."""
     if usuario_ve_todos_chamados(user):
-        return _aplicar_restricao_criador_25(queryset, user)
+        return _aplicar_restricao_chamados(queryset, user)
     role = _role(user)
     if role in (CustomUser.RoleChoices.TEAM_LEADER, CustomUser.RoleChoices.SUPERVISOR):
         filtro = _filtro_chamados_equipe(user) | _filtro_chamados_proprios(user)
@@ -177,7 +211,7 @@ def filtrar_chamados_para_usuario(queryset: QuerySet, user) -> QuerySet:
     # distinct() + order_by com M2M quebra no PostgreSQL — filtra por PK
     ids = queryset.filter(filtro).values_list('pk', flat=True).distinct()
     filtrado = queryset.filter(pk__in=ids)
-    return _aplicar_restricao_criador_25(filtrado, user)
+    return _aplicar_restricao_chamados(filtrado, user)
 
 
 def usuario_pode_acessar_chamado(user, ticket) -> bool:
@@ -185,9 +219,10 @@ def usuario_pode_acessar_chamado(user, ticket) -> bool:
     if not user or not user.is_authenticated:
         return False
 
-    # Chamados do user 25 (criador ou solicitante): somente TI id 2 ou stakeholders
-    if _chamado_eh_restrito(ticket):
-        if _eh_ti_visualizador_exclusivo(user):
+    # Grupos de restrição: só visualizadores configurados ou stakeholders
+    viewers = _visualizadores_permitidos_do_chamado(ticket)
+    if viewers is not None:
+        if user.pk in viewers:
             return True
         return usuario_eh_autor_ou_coautor(user, ticket)
 

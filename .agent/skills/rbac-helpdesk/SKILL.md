@@ -20,6 +20,10 @@ Consulte também [helpdesk/DOCUMENTACAO.md](../../helpdesk/DOCUMENTACAO.md).
 | Multiplicador | `MULTIPLIER` | Próprios + co-autor | Autor/solicitante/co-autor | Não |
 | Padrão | `STANDARD` | Próprios | Próprios | Não |
 
+## Grupos de restrição
+
+Aba Configurações (`HelpdeskRestrictionGroup`): cada grupo ativo mapeia usuários cujos chamados (`created_by` ou `requester_user`) só são visíveis aos visualizadores daquele grupo (TI / staff / superuser) e aos stakeholders. Vários grupos são independentes; o mesmo usuário em dois grupos une os visualizadores. Grupo inativo ou com listas vazias é ignorado.
+
 ## Arquivos-chave
 
 - `helpdesk/ticket_access.py` — helpers de permissão (fonte da verdade)

@@ -712,3 +712,35 @@ class UserPresence(models.Model):
 
     def __str__(self) -> str:
         return f'{self.user_id} @ {self.last_seen}'
+
+
+class HelpdeskRestrictionGroup(models.Model):
+    """Grupo de restrição de visibilidade de chamados (usuários x visualizadores TI)."""
+
+    nome = models.CharField(max_length=80, help_text='Nome exibido do grupo (ex.: Grupo 1).')
+    ativo = models.BooleanField(
+        default=True,
+        help_text='Se desligado, este grupo não restringe chamados.',
+    )
+    usuarios_restritos = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='helpdesk_restriction_as_user',
+        help_text='Chamados desses usuários só aparecem para os visualizadores do grupo.',
+    )
+    visualizadores = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='helpdesk_restriction_as_viewer',
+        help_text='Membros TI, staff ou superuser que veem os chamados restritos deste grupo.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['pk']
+        verbose_name = 'grupo de restrição de chamados'
+        verbose_name_plural = 'grupos de restrição de chamados'
+
+    def __str__(self) -> str:
+        return self.nome
