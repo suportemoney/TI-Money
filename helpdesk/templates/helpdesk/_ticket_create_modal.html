@@ -1,3 +1,4 @@
+{% load helpdesk_permissions %}
 <!-- Backdrop -->
 <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
      onclick="document.getElementById('modal-container').innerHTML = ''"></div>
@@ -89,13 +90,13 @@
             <!-- Categoria -->
             {% include "helpdesk/_category_field.html" %}
 
-            <!-- Categoria Específica (TI) -->
-            {% if form.specific_category %}
+            <!-- Funil (substitui categoria específica) -->
+            {% if form.tags %}
             <div>
-                <label for="{{ form.specific_category.id_for_label }}" class="block text-sm font-semibold text-slate-700 mb-1">Categoria Específica</label>
-                {{ form.specific_category }}
-                {% if form.specific_category.errors %}
-                <p class="text-xs text-red-600 mt-1">{{ form.specific_category.errors.0 }}</p>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Funil</label>
+                {{ form.tags }}
+                {% if form.tags.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ form.tags.errors.0 }}</p>
                 {% endif %}
             </div>
             {% endif %}
@@ -370,3 +371,4 @@
     });
 })();
 </script>
+<script src="{% helpdesk_static 'helpdesk/funnel-multiselect.js' %}"></script>

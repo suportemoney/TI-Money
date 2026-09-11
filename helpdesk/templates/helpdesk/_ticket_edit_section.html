@@ -1,3 +1,4 @@
+{% load helpdesk_permissions %}
 <div id="ticket-edit-section" class="border border-amber-200 bg-amber-50/50 rounded-xl p-4 space-y-4">
     <div class="flex items-center justify-between">
         <h4 class="font-bold text-slate-900 text-sm">Editar chamado</h4>
@@ -36,12 +37,7 @@
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Categoria</label>
                 {{ form.category }}
             </div>
-            {% if form.specific_category %}
-            <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Categoria Específica</label>
-                {{ form.specific_category }}
-            </div>
-            {% elif form.status %}
+            {% if form.status %}
             <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
                 {{ form.status }}
@@ -49,14 +45,15 @@
             {% endif %}
         </div>
 
-        {% if form.status or form.priority or form.assigned_to %}
+        {% if form.tags %}
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Funil</label>
+            {{ form.tags }}
+        </div>
+        {% endif %}
+
+        {% if form.priority or form.assigned_to %}
         <div class="grid grid-cols-2 gap-3">
-            {% if form.specific_category and form.status %}
-            <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
-                {{ form.status }}
-            </div>
-            {% endif %}
             {% if form.priority %}
             <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Prioridade</label>
@@ -64,7 +61,7 @@
             </div>
             {% endif %}
             {% if form.assigned_to %}
-            <div class="{% if not form.specific_category %}col-span-1{% else %}col-span-2{% endif %}">
+            <div class="{% if not form.priority %}col-span-2{% endif %}">
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Técnico responsável</label>
                 {{ form.assigned_to }}
             </div>
@@ -137,3 +134,4 @@
     atualizarSolicitanteEdit();
 })();
 </script>
+<script src="{% helpdesk_static 'helpdesk/funnel-multiselect.js' %}"></script>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load helpdesk_permissions %}
 
 {% block title %}Helpdesk - Sistema TI{% endblock %}
 
@@ -90,18 +91,9 @@
     {% endif %}
 
     {% if ticket_tags %}
-    <div class="mb-4 flex flex-wrap items-center gap-2">
-        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Funil:</span>
-        <a href="{% url 'helpdesk:kanban' %}"
-           class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors {% if not tag_filtro %}bg-fuchsia-600 text-white border-fuchsia-600{% else %}bg-white text-slate-600 border-slate-200 hover:border-fuchsia-300{% endif %}">
-            Todas
-        </a>
-        {% for t in ticket_tags %}
-        <a href="?tag={{ t.slug }}"
-           class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors {% if tag_filtro == t.slug %}bg-fuchsia-600 text-white border-fuchsia-600{% else %}bg-white text-slate-600 border-slate-200 hover:border-fuchsia-300{% endif %}">
-            #{{ t.nome }}
-        </a>
-        {% endfor %}
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide shrink-0">Funil:</span>
+        {% include "helpdesk/_funnel_multiselect.html" with funnel_options=ticket_tags funnel_selected=tag_filtros funnel_use_slug=True funnel_mode="filter" funnel_placeholder="Todos os funis" funnel_input_name="" %}
     </div>
     {% endif %}
 
@@ -111,7 +103,7 @@
         {% include "helpdesk/_informativo_expire_modal.html" %}
         <div id="kanban-board-container"
              hx-trigger="ticketUpdated from:body, ticketRead from:body"
-             hx-get="{% url 'helpdesk:kanban_board' %}?v={{ helpdesk_asset_v }}"
+             hx-get="{% url 'helpdesk:kanban_board' %}?v={{ helpdesk_asset_v }}{% for t in tag_filtros %}&tag={{ t }}{% endfor %}"
              hx-swap="innerHTML"
              class="h-full">
             {% include "helpdesk/_kanban_board.html" %}
@@ -186,13 +178,8 @@
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">Categoria Específica</label>
-                <select name="specific_category" id="triage-specific-category" class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Nenhuma / Não se aplica</option>
-                    {% for cat in specific_categories %}
-                    <option value="{{ cat.id }}">{{ cat.name }}</option>
-                    {% endfor %}
-                </select>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Funil</label>
+                {% include "helpdesk/_funnel_multiselect.html" with funnel_options=ticket_tags funnel_selected="" funnel_use_slug=False funnel_mode="form" funnel_placeholder="Sem funil" funnel_input_name="tags" funnel_wide=True %}
             </div>
 
             <div class="flex justify-end gap-2 mt-2">
@@ -369,7 +356,9 @@
                 const ticketId = document.getElementById('triage-ticket-id').value;
                 const newStatus = document.getElementById('triage-new-status').value;
                 const priority = triageForm.elements['priority'].value;
-                const specificCategory = triageForm.elements['specific_category'].value;
+                const tags = Array.from(triageForm.querySelectorAll('[data-funnel-option]:checked')).map(function(el) {
+                    return el.value;
+                });
                 
                 fetch(`/helpdesk/ticket/${ticketId}/update-status/`, {
                     method: 'POST',
@@ -380,7 +369,7 @@
                     body: JSON.stringify({ 
                         status: newStatus,
                         priority: priority,
-                        specific_category: specificCategory
+                        tags: tags
                     })
                 })
                 .then(response => response.json())
@@ -529,4 +518,5 @@
         setInterval(batimento, 30000);
     })();
 </script>
+<script src="{% helpdesk_static 'helpdesk/funnel-multiselect.js' %}"></script>
 {% endblock %}

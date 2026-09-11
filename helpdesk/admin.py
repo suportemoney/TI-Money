@@ -51,6 +51,7 @@ class TicketAdmin(admin.ModelAdmin):
     search_fields = ('title', 'requester_name', 'description')
     readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ('category', 'specific_category', 'equipe', 'requester_user', 'created_by', 'assigned_to', 'resolved_by')
+    filter_horizontal = ('tags',)
     inlines = (CommentInline, TicketAttachmentInline)
     date_hierarchy = 'created_at'
 

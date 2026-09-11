@@ -2,7 +2,7 @@ from django import forms
 from django.utils.safestring import mark_safe
 
 from core.models import CustomUser
-from helpdesk.models import HelpdeskRestrictionGroup, Ticket, TicketCategory, validate_file_attachment
+from helpdesk.models import HelpdeskRestrictionGroup, Ticket, TicketCategory, TicketTag, validate_file_attachment
 from helpdesk.ticket_access import (
     buscar_membro_equipe_por_nome,
     usuario_pode_definir_prioridade,
@@ -12,6 +12,23 @@ from helpdesk.ticket_access import (
 
 INPUT_CLASS = 'w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50 focus:bg-white transition-colors'
 SELECT_CLASS = 'w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors'
+
+
+class FunnelMultiSelectWidget(forms.CheckboxSelectMultiple):
+    """Dropdown com busca e seleção múltipla das tags de funil."""
+
+    template_name = 'helpdesk/widgets/funnel_multiselect.html'
+    option_inherits_attrs = False
+
+    def __init__(self, attrs=None, placeholder='Sem funil'):
+        super().__init__(attrs)
+        self.placeholder = placeholder
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context['widget']['placeholder'] = self.placeholder
+        context['widget']['mode'] = (attrs or {}).get('data-mode', 'form')
+        return context
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -78,7 +95,7 @@ class TicketCreateForm(forms.ModelForm):
 
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'priority', 'category', 'specific_category', 'equipe']
+        fields = ['title', 'description', 'priority', 'category', 'tags', 'equipe']
         widgets = {
             'title': forms.TextInput(attrs={
                 'placeholder': 'Resumo curto da solicitação',
@@ -93,7 +110,7 @@ class TicketCreateForm(forms.ModelForm):
             }),
             'priority': forms.Select(attrs={'class': SELECT_CLASS}),
             'category': forms.Select(attrs={'class': SELECT_CLASS}),
-            'specific_category': forms.Select(attrs={'class': SELECT_CLASS}),
+            'tags': FunnelMultiSelectWidget(),
             'equipe': forms.Select(attrs={'class': SELECT_CLASS}),
         }
 
@@ -103,11 +120,8 @@ class TicketCreateForm(forms.ModelForm):
         categoria_inicial = kwargs.pop('categoria_inicial', None)
         super().__init__(*args, **kwargs)
 
-        from helpdesk.models import TicketSpecificCategory
         self.fields['category'].queryset = TicketCategory.objects.filter(is_active=True).order_by('name')
-        self.fields['specific_category'].queryset = TicketSpecificCategory.objects.filter(is_active=True).order_by('name')
-        self.fields['specific_category'].required = False
-        self.fields['specific_category'].empty_label = 'Sem categoria específica'
+        self._configurar_campo_funil()
         
         if not self.is_bound and categoria_inicial:
             self.fields['category'].initial = categoria_inicial
@@ -150,7 +164,7 @@ class TicketCreateForm(forms.ModelForm):
             self._remover_campo('requester_name')
             self._remover_campo('requester_user')
             self._remover_campo('priority')
-            self._remover_campo('specific_category')
+            self._remover_campo('tags')
             return
 
         if role in (
@@ -165,7 +179,7 @@ class TicketCreateForm(forms.ModelForm):
             self.fields['tipo_solicitante'].initial = self.TIPO_EU
             self._remover_campo('requester_user')
             self._remover_campo('priority')
-            self._remover_campo('specific_category')
+            self._remover_campo('tags')
             self._configurar_equipes_usuario()
             return
         # ADMIN, IT_USER ou superuser
@@ -187,6 +201,15 @@ class TicketCreateForm(forms.ModelForm):
                 is_active=True,
             ).order_by('first_name', 'last_name', 'username')
             self.fields['requester_user'].label_from_instance = self._rotulo_usuario
+
+    def _configurar_campo_funil(self):
+        """Funil (tags) substitui a categoria específica nos formulários da TI."""
+        if 'tags' not in self.fields:
+            return
+        self.fields['tags'].queryset = TicketTag.objects.order_by('nome')
+        self.fields['tags'].required = False
+        self.fields['tags'].label = 'Funil'
+        self.fields['tags'].widget = FunnelMultiSelectWidget()
 
     def _configurar_equipes_usuario(self):
         """Restringe equipe às equipes do usuário (supervisor, líder, multiplicador)."""
@@ -269,6 +292,7 @@ class TicketCreateForm(forms.ModelForm):
                 
         if commit:
             ticket.save()
+            self.save_m2m()
             co_autor = self.cleaned_data.get('co_autor_user')
             if co_autor:
                 ticket.co_authors.add(co_autor)
@@ -321,7 +345,7 @@ class TicketUpdateForm(forms.ModelForm):
 
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'category', 'specific_category', 'priority', 'status', 'assigned_to']
+        fields = ['title', 'description', 'category', 'tags', 'priority', 'status', 'assigned_to']
         widgets = {
             'title': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'description': forms.Textarea(attrs={
@@ -331,7 +355,7 @@ class TicketUpdateForm(forms.ModelForm):
                 'aria-required': 'true',
             }),
             'category': forms.Select(attrs={'class': SELECT_CLASS}),
-            'specific_category': forms.Select(attrs={'class': SELECT_CLASS}),
+            'tags': FunnelMultiSelectWidget(),
             'priority': forms.Select(attrs={'class': SELECT_CLASS}),
             'status': forms.Select(attrs={'class': SELECT_CLASS}),
             'assigned_to': forms.Select(attrs={'class': SELECT_CLASS}),
@@ -340,11 +364,8 @@ class TicketUpdateForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
-        from helpdesk.models import TicketSpecificCategory
         self.fields['category'].queryset = TicketCategory.objects.filter(is_active=True).order_by('name')
-        self.fields['specific_category'].queryset = TicketSpecificCategory.objects.filter(is_active=True).order_by('name')
-        self.fields['specific_category'].required = False
-        self.fields['specific_category'].empty_label = 'Nenhuma'
+        self._configurar_campo_funil()
         self.fields['assigned_to'].queryset = usuarios_tecnicos_para_transferencia()
         self.fields['assigned_to'].required = False
         self.fields['assigned_to'].empty_label = 'Não atribuído'
@@ -377,7 +398,7 @@ class TicketUpdateForm(forms.ModelForm):
             self._remover_campo('priority')
             self._remover_campo('status')
             self._remover_campo('assigned_to')
-            self._remover_campo('specific_category')
+            self._remover_campo('tags')
             if role == CustomUser.RoleChoices.STANDARD:
                 self._remover_campo('tipo_solicitante')
                 self._remover_campo('requester_name')
@@ -452,7 +473,17 @@ class TicketUpdateForm(forms.ModelForm):
             ticket.requester_user = self.cleaned_data.get('requester_user')
         if commit:
             ticket.save()
+            self.save_m2m()
         return ticket
+
+    def _configurar_campo_funil(self):
+        """Funil (tags) substitui a categoria específica nos formulários da TI."""
+        if 'tags' not in self.fields:
+            return
+        self.fields['tags'].queryset = TicketTag.objects.order_by('nome')
+        self.fields['tags'].required = False
+        self.fields['tags'].label = 'Funil'
+        self.fields['tags'].widget = FunnelMultiSelectWidget()
 
 
 class HelpdeskRestrictionGroupForm(forms.ModelForm):

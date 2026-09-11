@@ -57,12 +57,9 @@
             {% endif %}
 
             <!-- Specific Category Badge -->
-            {% if ticket.specific_category %}
-                <span class="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-100 text-cyan-700">{{ ticket.specific_category.name }}</span>
-            {% endif %}
-            {% if ticket.tag %}
-                <span class="px-2 py-0.5 rounded text-xs font-semibold bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200" title="Tag de funil">#{{ ticket.tag.nome }}</span>
-            {% endif %}
+            {% for tag in ticket.tags.all %}
+                <span class="px-2 py-0.5 rounded text-xs font-semibold bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200" title="Tag de funil">#{{ tag.nome }}</span>
+            {% endfor %}
         </div>
         
         {% pode_contestar_chamado ticket as pode_contestar %}

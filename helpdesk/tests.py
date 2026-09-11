@@ -1040,13 +1040,13 @@ class AssistenteContextualTestCase(TestCase):
         r1 = definir_tag_chamado(self.ticket.pk, 'joytec-524')
         self.assertTrue(r1['ok'])
         self.ticket.refresh_from_db()
-        self.assertEqual(self.ticket.tag.nome, 'joytec-524')
+        self.assertEqual(list(self.ticket.tags.values_list('nome', flat=True)), ['joytec-524'])
         r2 = definir_tag_chamado(self.ticket.pk, 'sem-internet')
         self.ticket.refresh_from_db()
-        self.assertEqual(self.ticket.tag.nome, 'sem-internet')
+        self.assertEqual(set(self.ticket.tags.values_list('nome', flat=True)), {'joytec-524', 'sem-internet'})
         r3 = definir_tag_chamado(self.ticket.pk, limpar=True)
         self.ticket.refresh_from_db()
-        self.assertIsNone(self.ticket.tag_id)
+        self.assertEqual(self.ticket.tags.count(), 0)
 
     def test_set_status_pending_bloqueado_assistente(self):
         from helpdesk.assistente_services import AssistenteServiceError, set_ticket_status

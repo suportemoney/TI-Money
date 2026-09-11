@@ -51,7 +51,7 @@ def list_tickets(request):
     qs = Ticket.objects.select_related(
         'category', 'specific_category', 'equipe',
         'requester_user', 'created_by', 'assigned_to',
-    ).order_by('-updated_at')
+    ).prefetch_related('tags').order_by('-updated_at')
 
     status = (request.GET.get('status') or '').strip()
     if status:
@@ -95,7 +95,7 @@ def get_ticket(request, pk):
         Ticket.objects.select_related(
             'category', 'specific_category', 'equipe',
             'requester_user', 'created_by', 'assigned_to', 'resolved_by',
-        ),
+        ).prefetch_related('tags'),
         pk=pk,
     )
     return JsonResponse(serialize_ticket(ticket, detalhe=True))

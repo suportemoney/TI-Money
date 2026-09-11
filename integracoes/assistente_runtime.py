@@ -654,8 +654,8 @@ TOOLS_SPEC = [
         'function': {
             'name': 'definir_tag_chamado',
             'description': (
-                'Define a única tag curta do chamado (funil/follow-up, máx. 30 chars). '
-                'Ex.: sem-internet, joytec-524, chip-ban. Use limpar=true para remover.'
+                'Adiciona uma tag curta de funil ao chamado (máx. 30 chars; várias permitidas). '
+                'Ex.: sem-internet, joytec-524, chip-ban. Use limpar=true para remover todas.'
             ),
             'parameters': {
                 'type': 'object',
@@ -847,13 +847,15 @@ def _chunks_relevantes(ticket: Ticket, limite: int = 12) -> tuple[list[Assistent
     demais = [ch for ch in qs if not chunk_eh_regra(ch)]
 
     cat = ticket.category.name if ticket.category_id else ''
+    funil = ' '.join(ticket.nomes_funil())
     query_txt = ' '.join([
         ticket.title or '',
         (ticket.description or '')[:800],
         cat,
+        funil,
         ticket.specific_category.name if ticket.specific_category_id else '',
     ]).strip()
-    tokens = _tokens_relevancia(ticket.title or '', (ticket.description or '')[:800], cat)
+    tokens = _tokens_relevancia(ticket.title or '', (ticket.description or '')[:800], cat, funil)
     if ticket.specific_category_id:
         tokens |= _tokens_relevancia(ticket.specific_category.name)
 
@@ -1081,7 +1083,7 @@ def _montar_contexto(
     ) or '(sem chunks de aprendizado)'
     cat_esp = ticket.specific_category.name if ticket.specific_category_id else '(não triado)'
     equipe_nome = ticket.equipe.name if ticket.equipe_id else '(não informada)'
-    tag_txt = ticket.tag.nome if getattr(ticket, 'tag_id', None) else '(sem tag)'
+    tag_txt = ', '.join(ticket.nomes_funil()) or '(sem tag)'
 
     if ticket.requester_user_id:
         ru = ticket.requester_user
@@ -1168,7 +1170,7 @@ def _system_prompt() -> str:
         '- NÃO finalize nem recuse por falta de resposta (Novos/Pendente ou qualquer coluna). '
         'RESOLVED só se o solicitante/criador disse que já foi resolvido/pediu fechar, '
         'ou se um membro TI pediu.\n'
-        '- Defina/atualize tag curta com definir_tag_chamado quando o tema estiver claro.\n'
+        '- Defina/atualize tags de funil com definir_tag_chamado quando o tema estiver claro.\n'
         '- Pedido para mencionar alguém: consultar_usuario e use o username exato '
         '(@login) em send_assistente_message (interno se o pedido veio interno).\n'
         '- E-mail/chip: consultar_email e consultar_chips pelo nome; sobrenome extra '
@@ -1659,8 +1661,8 @@ def processar_assistente(
     try:
         ticket = Ticket.objects.select_related(
             'category', 'specific_category', 'created_by', 'assigned_to',
-            'requester_user', 'equipe', 'tag',
-        ).get(pk=ticket_id)
+            'requester_user', 'equipe',
+        ).prefetch_related('tags').get(pk=ticket_id)
     except Ticket.DoesNotExist:
         return
 
@@ -1726,8 +1728,8 @@ def _processar_assistente_inner(
     try:
         ticket = Ticket.objects.select_related(
             'category', 'specific_category', 'created_by', 'assigned_to',
-            'requester_user', 'equipe', 'tag',
-        ).get(pk=ticket_id)
+            'requester_user', 'equipe',
+        ).prefetch_related('tags').get(pk=ticket_id)
     except Ticket.DoesNotExist:
         return
 

@@ -101,7 +101,7 @@ REGRAS_SEED: list[dict[str, Any]] = [
             '- NÃO use status PENDING (só TI após Em Atendimento).\n'
             '- NÃO finalize nem recuse por falta de resposta. RESOLVED só com pedido '
             'do solicitante/criador (já resolvido / pode fechar) ou de membro TI.\n'
-            '- Use definir_tag_chamado com tag curta (máx. 30 chars) como funil.\n'
+            '- Use definir_tag_chamado com tag curta (máx. 30 chars) como funil (várias permitidas).\n'
             '- Se houver comunicado vigente da Central Informativa no contexto, siga-o.'
         ),
     },

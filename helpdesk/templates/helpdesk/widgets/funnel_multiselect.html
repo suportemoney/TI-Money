@@ -1,0 +1,36 @@
+{% with placeholder=widget.placeholder|default:"Sem funil" mode=widget.mode|default:"form" %}
+<div class="funnel-ms relative" data-funnel-ms data-mode="{{ mode }}" data-placeholder="{{ placeholder }}">
+    <button type="button"
+            data-funnel-toggle
+            class="w-full min-h-[42px] text-sm p-2.5 border border-slate-300 rounded-lg bg-slate-50 hover:bg-white focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-fuchsia-400 transition-colors flex items-center justify-between gap-2 text-left">
+        <span data-funnel-summary class="flex-1 min-w-0 flex flex-wrap gap-1 items-center text-slate-500">{{ placeholder }}</span>
+        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    </button>
+    <div data-funnel-panel class="hidden absolute z-[80] mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+        <div class="p-2 border-b border-slate-100">
+            <input type="search" data-funnel-search placeholder="Buscar funil..." autocomplete="off"
+                   class="w-full text-sm p-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
+        </div>
+        <div class="max-h-56 overflow-y-auto py-1">
+            {% for group, options, index in widget.optgroups %}
+                {% for option in options %}
+                <label data-funnel-row data-search="{{ option.label|lower }}"
+                       class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-fuchsia-50 cursor-pointer text-slate-700">
+                    <input type="checkbox"
+                           name="{{ option.name }}"
+                           value="{{ option.value|stringformat:'s' }}"
+                           {% if option.selected %}checked{% endif %}
+                           data-funnel-option
+                           data-label="{{ option.label }}"
+                           class="rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500">
+                    <span class="truncate">#{{ option.label }}</span>
+                </label>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        <div class="px-3 py-2 border-t border-slate-100 flex justify-end">
+            <button type="button" data-funnel-clear class="text-xs font-medium text-slate-500 hover:text-fuchsia-700">Limpar</button>
+        </div>
+    </div>
+</div>
+{% endwith %}

@@ -2598,20 +2598,21 @@ def _normalizar_tag_nome(nome: str) -> str:
 
 
 def definir_tag_chamado(ticket_id: int, tag: str = '', *, limpar: bool = False) -> dict:
-    """Define ou remove a única tag do chamado (cria TicketTag se necessário)."""
+    """Adiciona ou remove tags de funil do chamado (cria TicketTag se necessário)."""
     from django.utils.text import slugify
 
     from helpdesk.models import TicketTag
 
-    ticket = Ticket.objects.filter(pk=ticket_id).select_related('tag').first()
+    ticket = Ticket.objects.filter(pk=ticket_id).prefetch_related('tags').first()
     if not ticket:
         raise AssistenteServiceError('Chamado não encontrado.', 404)
 
+    antes = list(ticket.tags.values_list('nome', flat=True))
+
     if limpar or not (tag or '').strip():
-        antes = ticket.tag.nome if ticket.tag_id else None
-        ticket.tag = None
-        ticket.save(update_fields=['tag', 'updated_at'])
-        return {'ok': True, 'ticket_id': ticket.pk, 'tag': None, 'tag_antes': antes}
+        ticket.tags.clear()
+        ticket.save(update_fields=['updated_at'])
+        return {'ok': True, 'ticket_id': ticket.pk, 'tag': None, 'tags': [], 'tag_antes': antes}
 
     nome = _normalizar_tag_nome(tag)
     if len(nome) < 2:
@@ -2621,16 +2622,14 @@ def definir_tag_chamado(ticket_id: int, tag: str = '', *, limpar: bool = False) 
         slug=slug,
         defaults={'nome': nome, 'criada_por_ia': True},
     )
-    if not created and obj.nome != nome and len(nome) <= 30:
-        # Mantém nome existente; só associa
-        pass
-    antes = ticket.tag.nome if ticket.tag_id else None
-    ticket.tag = obj
-    ticket.save(update_fields=['tag', 'updated_at'])
+    ticket.tags.add(obj)
+    ticket.save(update_fields=['updated_at'])
+    atuais = list(ticket.tags.values_list('nome', flat=True))
     return {
         'ok': True,
         'ticket_id': ticket.pk,
         'tag': obj.nome,
+        'tags': atuais,
         'tag_id': obj.pk,
         'criada': created,
         'tag_antes': antes,

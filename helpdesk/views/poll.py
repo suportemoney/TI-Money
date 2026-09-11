@@ -32,7 +32,7 @@ def _resolver_acao_poll(log):
     if acao == 'UPDATED':
         if 'priority' in metadata:
             return 'PRIORITY_CHANGED'
-        if 'specific_category' in metadata:
+        if 'specific_category' in metadata or 'tags' in metadata:
             return 'TRIAGE_CHANGED'
         if 'status' in metadata:
             return 'STATUS_CHANGED'

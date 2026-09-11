@@ -174,13 +174,11 @@ class Ticket(models.Model):
         blank=True,
         help_text='Quando o Assistente cobrou resposta com @menção (follow-up de 5 min).',
     )
-    tag = models.ForeignKey(
+    tags = models.ManyToManyField(
         'TicketTag',
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
         related_name='tickets',
-        help_text='Tag curta de funil/follow-up (uma por chamado).',
+        help_text='Tags de funil/follow-up do chamado (várias permitidas).',
     )
     assistente_ajuda_ti_em = models.DateTimeField(
         null=True,
@@ -222,6 +220,10 @@ class Ticket(models.Model):
             return False
         limite = timedelta(minutes=self.ASSISTENTE_CHIP_AUTH_MINUTOS)
         return (timezone.now() - self.assistente_chip_auth_em) <= limite
+
+    def nomes_funil(self) -> list[str]:
+        """Nomes das tags de funil já carregadas (prefetch) ou consultadas."""
+        return [t.nome for t in self.tags.all()]
 
     @classmethod
     def archive_old_tickets(
@@ -582,7 +584,7 @@ class TicketMention(models.Model):
 
 
 class TicketTag(models.Model):
-    """Tag curta reutilizável para funil/follow-up dos chamados (máx. 1 por ticket)."""
+    """Tag curta reutilizável para funil/follow-up dos chamados (várias por ticket)."""
 
     nome = models.CharField(max_length=30, unique=True, help_text='Nome curto da tag (sem espaços longos).')
     slug = models.SlugField(max_length=40, unique=True, help_text='Identificador normalizado.')

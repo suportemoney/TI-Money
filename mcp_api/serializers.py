@@ -43,6 +43,7 @@ def serialize_ticket(ticket, detalhe=False):
         'priority_display': ticket.get_priority_display() if ticket.priority else None,
         'category': ticket.category.name if ticket.category_id else None,
         'specific_category': ticket.specific_category.name if ticket.specific_category_id else None,
+        'tags': list(ticket.tags.values_list('nome', flat=True)),
         'equipe': ticket.equipe.name if ticket.equipe_id else None,
         'requester_name': ticket.requester_name,
         'requester_user': user_ref(ticket.requester_user),

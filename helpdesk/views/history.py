@@ -19,7 +19,7 @@ COLUNAS_CSV_HISTORICO = [
     'Solicitante',
     'Usuário solicitante',
     'Categoria',
-    'Categoria específica',
+    'Funil',
     'Status',
     'Prioridade',
     'Técnico',
@@ -57,9 +57,8 @@ def queryset_historico_base(user):
         'created_by',
         'requester_user',
         'category',
-        'specific_category',
         'equipe',
-    ).order_by('-created_at')
+    ).prefetch_related('tags').order_by('-created_at')
 
 
 def aplicar_filtros_historico(queryset, request):
@@ -107,7 +106,7 @@ def _linha_csv_ticket(ticket):
         'Solicitante': _limpar_texto(ticket.requester_name),
         'Usuário solicitante': _limpar_texto(_nome_usuario(ticket.requester_user)),
         'Categoria': ticket.category.name if ticket.category_id else '',
-        'Categoria específica': ticket.specific_category.name if ticket.specific_category_id else '',
+        'Funil': ', '.join(f'#{n}' for n in ticket.nomes_funil()),
         'Status': ticket.get_status_display(),
         'Prioridade': ticket.get_priority_display() if ticket.priority else '',
         'Técnico': _limpar_texto(_nome_usuario(ticket.assigned_to)),

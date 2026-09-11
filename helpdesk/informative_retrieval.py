@@ -44,12 +44,7 @@ def buscar_comunicados_relevantes(ticket: Ticket, *, limite: int = 5) -> list[di
         Q(valido_ate__isnull=True) | Q(valido_ate__gte=agora),
     ).select_related('created_by').order_by('-created_at')[:80]
 
-    tag_nome = ''
-    if getattr(ticket, 'tag_id', None) and ticket.tag_id:
-        try:
-            tag_nome = ticket.tag.nome
-        except Exception:
-            tag_nome = ''
+    tag_nome = ' '.join(ticket.nomes_funil())
 
     query_tokens = _tokens(
         ticket.title or '',

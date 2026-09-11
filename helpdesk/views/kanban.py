@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.db.models import Q
 from helpdesk.forms import TicketCreateForm, TicketUpdateForm
-from helpdesk.models import Ticket, TicketCategory, Comment, TicketContestation, TicketUnread
+from helpdesk.models import Ticket, TicketCategory, TicketTag, Comment, TicketContestation, TicketUnread
 from helpdesk.audit import (
     log_atribuicao,
     log_chamado_criado,
@@ -196,6 +196,12 @@ def gerar_comentarios_alteracao(antes, depois):
             f'Técnico transferido de {_nome_usuario(antes.assigned_to)} '
             f'para {_nome_usuario(depois.assigned_to)}.'
         )
+    antes_funil = sorted(antes.tags.values_list('nome', flat=True))
+    depois_funil = sorted(depois.tags.values_list('nome', flat=True))
+    if antes_funil != depois_funil:
+        rotulo_antes = ', '.join(f'#{n}' for n in antes_funil) or 'Nenhum'
+        rotulo_depois = ', '.join(f'#{n}' for n in depois_funil) or 'Nenhum'
+        mensagens.append(f'Funil alterado de {rotulo_antes} para {rotulo_depois}.')
     return mensagens
 
 
@@ -224,6 +230,10 @@ def _metadata_alteracao_ticket(antes, depois):
         }
     if (antes.description or '') != (depois.description or ''):
         metadata['description'] = {'antes': '...', 'depois': 'atualizada'}
+    antes_funil = sorted(antes.tags.values_list('nome', flat=True))
+    depois_funil = sorted(depois.tags.values_list('nome', flat=True))
+    if antes_funil != depois_funil:
+        metadata['tags'] = {'antes': antes_funil, 'depois': depois_funil}
     return metadata
 
 
@@ -309,13 +319,13 @@ class KanbanView(ModuloObrigatorioMixin, TemplateView):
             self.request.user,
         ).select_related(
             'assigned_to', 'created_by', 'requester_user', 'category',
-            'specific_category', 'equipe', 'tag',
-        ).prefetch_related('co_authors', 'attachments')
+            'specific_category', 'equipe',
+        ).prefetch_related('co_authors', 'attachments', 'tags')
 
-        # Filtro de funil por tag
-        tag_slug = (self.request.GET.get('tag') or '').strip()
-        if tag_slug:
-            tickets = tickets.filter(tag__slug=tag_slug)
+        # Filtro de funil por tags (multi-select)
+        tag_slugs = [s.strip() for s in self.request.GET.getlist('tag') if (s or '').strip()]
+        if tag_slugs:
+            tickets = tickets.filter(tags__slug__in=tag_slugs).distinct()
         
         priority_ordering = Case(
             When(priority='URGENT', then=Value(4)),
@@ -367,10 +377,10 @@ class KanbanView(ModuloObrigatorioMixin, TemplateView):
         context['tickets_resolved'] = tickets_annotated.filter(status=Ticket.StatusChoices.RESOLVED).order_by('-updated_at')
         context['pode_operar_kanban'] = usuario_pode_operar_kanban(self.request.user)
 
-        from helpdesk.models import TicketSpecificCategory, TicketTag
-        context['specific_categories'] = TicketSpecificCategory.objects.filter(is_active=True).order_by('name')
-        context['ticket_tags'] = TicketTag.objects.order_by('nome')[:80]
-        context['tag_filtro'] = tag_slug
+        from helpdesk.models import TicketTag
+        context['ticket_tags'] = TicketTag.objects.order_by('nome')
+        context['tag_filtros'] = tag_slugs
+        context['tag_filtro'] = tag_slugs[0] if len(tag_slugs) == 1 else ''
 
         return context
 
@@ -484,12 +494,14 @@ def ticket_update_status(request, pk):
         data = json.loads(request.body)
         new_status = data.get('status')
     except json.JSONDecodeError:
+        data = {}
         new_status = request.POST.get('status')
 
     if new_status in dict(Ticket.StatusChoices.choices):
         status_anterior = ticket.status
         prioridade_anterior = ticket.priority
         triagem_anterior = ticket.specific_category
+        funil_antes = sorted(ticket.tags.values_list('nome', flat=True))
 
         # Pendente: só TI e apenas a partir de Em Atendimento
         if new_status == Ticket.StatusChoices.PENDING:
@@ -541,6 +553,17 @@ def ticket_update_status(request, pk):
                 ticket.assistente_escalado = False
 
         ticket.save()
+        if 'tags' in data:
+            bruto = data.get('tags') or []
+            if not isinstance(bruto, list):
+                bruto = [bruto]
+            ids = []
+            for item in bruto:
+                try:
+                    ids.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+            ticket.tags.set(TicketTag.objects.filter(pk__in=ids))
         if status_anterior != new_status:
             log_status_alterado(
                 ticket,
@@ -571,6 +594,15 @@ def ticket_update_status(request, pk):
                 request.user,
                 EVENTO_TRIAGE_CHANGED,
                 f'Triagem: {depois_nome}.',
+            )
+        funil_depois = sorted(ticket.tags.values_list('nome', flat=True))
+        if funil_antes != funil_depois:
+            rotulo = ', '.join(f'#{n}' for n in funil_depois) or 'Nenhum'
+            agendar_notificacao_chamado(
+                ticket,
+                request.user,
+                EVENTO_TRIAGE_CHANGED,
+                f'Funil: {rotulo}.',
             )
         if voltou_para_novos:
             _agendar_assistente(ticket.pk)
@@ -722,8 +754,8 @@ def ticket_contest(request, pk):
 def ticket_drawer(request, pk):
     ticket = get_object_or_404(
         Ticket.objects.select_related(
-            'assigned_to', 'created_by', 'requester_user', 'category', 'tag',
-        ).prefetch_related('co_authors'),
+            'assigned_to', 'created_by', 'requester_user', 'category',
+        ).prefetch_related('co_authors', 'tags'),
         pk=pk,
         is_active=True,
     )
@@ -744,7 +776,7 @@ def ticket_drawer(request, pk):
 def ticket_edit(request, pk):
     """Exibe ou salva edição de chamado."""
     ticket = get_object_or_404(
-        Ticket.objects.select_related('assigned_to', 'created_by', 'requester_user', 'category'),
+        Ticket.objects.select_related('assigned_to', 'created_by', 'requester_user', 'category').prefetch_related('tags'),
         pk=pk,
         is_active=True,
     )
@@ -758,7 +790,7 @@ def ticket_edit(request, pk):
             _contexto_drawer(request, ticket, edit_form=TicketUpdateForm(instance=ticket, user=request.user)),
         )
 
-    antes = Ticket.objects.select_related('assigned_to', 'category', 'specific_category').get(pk=ticket.pk)
+    antes = Ticket.objects.select_related('assigned_to', 'category', 'specific_category').prefetch_related('tags').get(pk=ticket.pk)
     form = TicketUpdateForm(request.POST, instance=ticket, user=request.user)
     if form.is_valid():
         depois = form.save(commit=False)
@@ -801,6 +833,14 @@ def ticket_edit(request, pk):
                 request.user,
                 EVENTO_TRIAGE_CHANGED,
                 msg_triagem,
+            )
+        if 'tags' in metadata:
+            msg_funil = next((m for m in mensagens if m.startswith('Funil')), 'Funil alterado.')
+            agendar_notificacao_chamado(
+                depois,
+                request.user,
+                EVENTO_TRIAGE_CHANGED,
+                msg_funil,
             )
 
         adicionar_nao_lido(depois, request.user)
