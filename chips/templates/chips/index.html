@@ -154,51 +154,21 @@
                     placeholder="Número..."
                     class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
             </div>
-            <div class="w-40 flex-shrink-0">
-                <label for="filter-chip-operator"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Operadora</label>
-                <select id="filter-chip-operator" onchange="filterChips()"
-                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="">Qualquer</option>
-                    {% for op in operators_filter %}
-                    <option value="{{ op.id }}">{{ op.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="w-32 flex-shrink-0">
-                <label for="filter-chip-status"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Status</label>
-                <select id="filter-chip-status" onchange="filterChips()"
-                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="">Qualquer</option>
-                    <option value="ACTIVE">Ativo</option>
-                    <option value="BANNED">Banido</option>
-                    <option value="CANCELED">Cancelado</option>
-                    <option value="LOST">Perdido</option>
-                    <option value="OTHER">Outro</option>
-                </select>
-            </div>
-            <div class="w-32 flex-shrink-0">
-                <label for="filter-chip-usage"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Uso</label>
-                <select id="filter-chip-usage" onchange="filterChips()"
-                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="">Qualquer</option>
-                    <option value="AVAILABLE">Disponível</option>
-                    <option value="IN_USE">Em Uso</option>
-                    <option value="UNAVAILABLE">Indisponível</option>
-                </select>
+            <div class="w-44 flex-shrink-0">
+                <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Operadora</span>
+                {% include "chips/_filter_multiselect.html" with ms_id="filter-chip-operator" ms_kind="operator" ms_placeholder="Qualquer" ms_search="Buscar operadora..." %}
             </div>
             <div class="w-40 flex-shrink-0">
-                <label for="filter-chip-envelope"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Envelope</label>
-                <select id="filter-chip-envelope" onchange="filterChips()"
-                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="">Qualquer</option>
-                    {% for batch in all_batches %}
-                    <option value="{{ batch.id }}">{{ batch.nome|default:batch.label }}</option>
-                    {% endfor %}
-                </select>
+                <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Status</span>
+                {% include "chips/_filter_multiselect.html" with ms_id="filter-chip-status" ms_kind="status" ms_placeholder="Qualquer" ms_search="Buscar status..." %}
+            </div>
+            <div class="w-40 flex-shrink-0">
+                <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Uso</span>
+                {% include "chips/_filter_multiselect.html" with ms_id="filter-chip-usage" ms_kind="usage" ms_placeholder="Qualquer" ms_search="Buscar uso..." %}
+            </div>
+            <div class="w-44 flex-shrink-0">
+                <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Envelope</span>
+                {% include "chips/_filter_multiselect.html" with ms_id="filter-chip-envelope" ms_kind="envelope" ms_placeholder="Qualquer" ms_search="Buscar envelope..." %}
             </div>
             <div class="flex-1 min-w-[180px]">
                 <label for="filter-chip-funcionario-obs"
@@ -792,13 +762,122 @@
         return true;
     }
 
+    function valoresMulti(id) {
+        var root = document.getElementById(id);
+        if (!root) return [];
+        return Array.from(root.querySelectorAll('[data-chip-ms-option]:checked')).map(function (el) {
+            return el.value;
+        });
+    }
+
+    function atualizarResumoMulti(root) {
+        var summary = root.querySelector('[data-chip-ms-summary]');
+        if (!summary) return;
+        var placeholder = root.getAttribute('data-placeholder') || 'Qualquer';
+        var marcados = Array.from(root.querySelectorAll('[data-chip-ms-option]:checked'));
+        summary.innerHTML = '';
+        if (!marcados.length) {
+            summary.textContent = placeholder;
+            summary.classList.add('text-slate-500');
+            summary.classList.remove('text-slate-800');
+            return;
+        }
+        summary.classList.remove('text-slate-500');
+        summary.classList.add('text-slate-800');
+        var maxChips = 1;
+        marcados.slice(0, maxChips).forEach(function (el) {
+            var chip = document.createElement('span');
+            chip.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200';
+            chip.textContent = el.getAttribute('data-label') || el.value;
+            summary.appendChild(chip);
+        });
+        if (marcados.length > maxChips) {
+            var extra = document.createElement('span');
+            extra.className = 'text-[11px] font-semibold text-blue-700';
+            extra.textContent = '+' + (marcados.length - maxChips);
+            summary.appendChild(extra);
+        }
+    }
+
+    function bindChipMultiSelect(root) {
+        if (root.dataset.chipMsReady === '1') return;
+        root.dataset.chipMsReady = '1';
+        var toggle = root.querySelector('[data-chip-ms-toggle]');
+        var panel = root.querySelector('[data-chip-ms-panel]');
+        var search = root.querySelector('[data-chip-ms-search]');
+        var clearBtn = root.querySelector('[data-chip-ms-clear]');
+
+        if (toggle && panel) {
+            toggle.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                document.querySelectorAll('[data-chip-ms-panel]').forEach(function (p) {
+                    if (p !== panel) p.classList.add('hidden');
+                });
+                panel.classList.toggle('hidden');
+                if (!panel.classList.contains('hidden')) {
+                    var rect = toggle.getBoundingClientRect();
+                    panel.style.position = 'fixed';
+                    panel.style.left = Math.max(8, rect.left) + 'px';
+                    panel.style.top = (rect.bottom + 4) + 'px';
+                    panel.style.width = Math.max(rect.width, 224) + 'px';
+                    panel.style.zIndex = '90';
+                    if (search) search.focus();
+                }
+            });
+        }
+
+        if (search) {
+            search.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') e.preventDefault();
+            });
+            search.addEventListener('input', function () {
+                var q = (search.value || '').toLowerCase().trim();
+                root.querySelectorAll('[data-chip-ms-row]').forEach(function (row) {
+                    var txt = row.getAttribute('data-search') || '';
+                    row.classList.toggle('hidden', q && txt.indexOf(q) === -1);
+                });
+            });
+        }
+
+        root.querySelectorAll('[data-chip-ms-option]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                atualizarResumoMulti(root);
+                filterChips();
+            });
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                root.querySelectorAll('[data-chip-ms-option]:checked').forEach(function (cb) {
+                    cb.checked = false;
+                });
+                atualizarResumoMulti(root);
+                filterChips();
+            });
+        }
+
+        atualizarResumoMulti(root);
+    }
+
+    document.addEventListener('click', function (e) {
+        document.querySelectorAll('[data-chip-ms]').forEach(function (root) {
+            var panel = root.querySelector('[data-chip-ms-panel]');
+            if (!panel || panel.classList.contains('hidden')) return;
+            if (root.contains(e.target) || panel.contains(e.target)) return;
+            panel.classList.add('hidden');
+        });
+    });
+
     function filterChips() {
         var linhaInput = ($('#filter-chip-linha').val() || '').toLowerCase();
         var funcObsInput = ($('#filter-chip-funcionario-obs').val() || '').toLowerCase();
-        var opInput = $('#filter-chip-operator').val();
-        var statusInput = $('#filter-chip-status').val();
-        var usageInput = $('#filter-chip-usage').val();
-        var envelopeInput = $('#filter-chip-envelope').val();
+        var opInputs = valoresMulti('filter-chip-operator');
+        var statusInputs = valoresMulti('filter-chip-status');
+        var usageInputs = valoresMulti('filter-chip-usage');
+        var envelopeInputs = valoresMulti('filter-chip-envelope');
         var activatedFrom = $('#filter-activated-from').val() || '';
         var activatedTo = $('#filter-activated-to').val() || '';
         var rechargeFrom = $('#filter-recharge-from').val() || '';
@@ -823,10 +902,10 @@
             var matchFuncObs = !funcObsInput ||
                 funcionario.includes(funcObsInput) ||
                 observacao.includes(funcObsInput);
-            var matchOp = !opInput || $row.attr('data-operator') === opInput;
-            var matchStatus = !statusInput || $row.attr('data-status') === statusInput;
-            var matchUsage = !usageInput || $row.attr('data-usage') === usageInput;
-            var matchEnvelope = !envelopeInput || String($row.attr('data-batch') || '') === envelopeInput;
+            var matchOp = !opInputs.length || opInputs.indexOf(String($row.attr('data-operator') || '')) !== -1;
+            var matchStatus = !statusInputs.length || statusInputs.indexOf(String($row.attr('data-status') || '')) !== -1;
+            var matchUsage = !usageInputs.length || usageInputs.indexOf(String($row.attr('data-usage') || '')) !== -1;
+            var matchEnvelope = !envelopeInputs.length || envelopeInputs.indexOf(String($row.attr('data-batch') || '')) !== -1;
             var matchActivated = dateInRange($row.attr('data-activated') || '', activatedFrom, activatedTo);
             var matchRecharge = dateInRange($row.attr('data-recharge') || '', rechargeFrom, rechargeTo);
             var matchNoEmail = !noEmailOnly || $row.attr('data-email') !== 'true';
@@ -840,6 +919,7 @@
         });
     }
     window.filterChips = filterChips;
+    document.querySelectorAll('[data-chip-ms]').forEach(bindChipMultiSelect);
 
     var currentSort = { col: -1, asc: true };
     function sortTable(colIndex, attrName, sortType) {

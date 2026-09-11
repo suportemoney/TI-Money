@@ -1,0 +1,77 @@
+{# Dropdown com busca e seleção múltipla para filtros da gestão de chips. #}
+<div id="{{ ms_id }}" class="relative w-full" data-chip-ms data-placeholder="{{ ms_placeholder|default:'Qualquer' }}">
+    <button type="button"
+            data-chip-ms-toggle
+            class="w-full min-h-[42px] text-sm px-2.5 py-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-colors flex items-center justify-between gap-1 text-left">
+        <span data-chip-ms-summary class="flex-1 min-w-0 flex flex-wrap gap-1 items-center text-slate-500">{{ ms_placeholder|default:'Qualquer' }}</span>
+        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    </button>
+    <div data-chip-ms-panel class="hidden absolute z-[80] mt-1 w-full min-w-[14rem] bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+        <div class="p-2 border-b border-slate-100">
+            <input type="search" data-chip-ms-search placeholder="{{ ms_search|default:'Buscar...' }}" autocomplete="off"
+                   class="w-full text-sm p-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="max-h-56 overflow-y-auto py-1">
+            {% if ms_kind == 'operator' %}
+                {% for op in operators_filter %}
+                <label data-chip-ms-row data-search="{{ op.name|lower }}"
+                       class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="{{ op.id }}" data-chip-ms-option data-label="{{ op.name }}"
+                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span class="truncate">{{ op.name }}</span>
+                </label>
+                {% empty %}
+                <p class="px-3 py-2 text-xs text-slate-400">Nenhuma operadora.</p>
+                {% endfor %}
+            {% elif ms_kind == 'status' %}
+                <label data-chip-ms-row data-search="ativo" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="ACTIVE" data-chip-ms-option data-label="Ativo" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Ativo</span>
+                </label>
+                <label data-chip-ms-row data-search="banido" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="BANNED" data-chip-ms-option data-label="Banido" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Banido</span>
+                </label>
+                <label data-chip-ms-row data-search="cancelado" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="CANCELED" data-chip-ms-option data-label="Cancelado" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Cancelado</span>
+                </label>
+                <label data-chip-ms-row data-search="perdido" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="LOST" data-chip-ms-option data-label="Perdido" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Perdido</span>
+                </label>
+                <label data-chip-ms-row data-search="outro" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="OTHER" data-chip-ms-option data-label="Outro" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Outro</span>
+                </label>
+            {% elif ms_kind == 'usage' %}
+                <label data-chip-ms-row data-search="disponivel disponível" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="AVAILABLE" data-chip-ms-option data-label="Disponível" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Disponível</span>
+                </label>
+                <label data-chip-ms-row data-search="em uso" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="IN_USE" data-chip-ms-option data-label="Em Uso" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Em Uso</span>
+                </label>
+                <label data-chip-ms-row data-search="indisponivel indisponível" class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="UNAVAILABLE" data-chip-ms-option data-label="Indisponível" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Indisponível</span>
+                </label>
+            {% elif ms_kind == 'envelope' %}
+                {% for batch in all_batches %}
+                <label data-chip-ms-row data-search="{{ batch.nome|default:batch.label|lower }}"
+                       class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-blue-50 cursor-pointer text-slate-700">
+                    <input type="checkbox" value="{{ batch.id }}" data-chip-ms-option data-label="{{ batch.nome|default:batch.label }}"
+                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span class="truncate">{{ batch.nome|default:batch.label }}</span>
+                </label>
+                {% empty %}
+                <p class="px-3 py-2 text-xs text-slate-400">Nenhum envelope.</p>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <div class="px-3 py-2 border-t border-slate-100 flex justify-end">
+            <button type="button" data-chip-ms-clear class="text-xs font-medium text-slate-500 hover:text-blue-700">Limpar</button>
+        </div>
+    </div>
+</div>
