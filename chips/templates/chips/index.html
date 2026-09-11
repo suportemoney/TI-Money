@@ -145,41 +145,27 @@
             </button>
         </div>
 
-        <!-- Barra de Filtros -->
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-4">
-            <div class="flex-1 min-w-[180px]">
-                <label for="filter-chip-text"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Pesquisa rápida</label>
-                <input type="text" id="filter-chip-text" onkeyup="filterChips()"
-                    placeholder="Pesquise por linha, operadora, envelope..."
+        <!-- Barra de Filtros: linha | operadora | status | uso | envelope | funcionário/obs | ativação | recarga | flags -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
+            <div class="w-36 flex-shrink-0">
+                <label for="filter-chip-linha"
+                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Linha</label>
+                <input type="text" id="filter-chip-linha" onkeyup="filterChips()"
+                    placeholder="Número..."
                     class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
             </div>
-            <div class="w-48 flex-shrink-0">
-                <label for="filter-chip-funcionario"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Funcionário</label>
-                <input type="text" id="filter-chip-funcionario" onkeyup="filterChips()"
-                    placeholder="Nome do funcionário..."
-                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
-            </div>
-            <div class="w-48 flex-shrink-0">
-                <label for="filter-chip-observacao"
-                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Observação</label>
-                <input type="text" id="filter-chip-observacao" onkeyup="filterChips()"
-                    placeholder="Texto da observação..."
-                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
-            </div>
-            <div class="w-48 flex-shrink-0">
+            <div class="w-40 flex-shrink-0">
                 <label for="filter-chip-operator"
                     class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Operadora</label>
                 <select id="filter-chip-operator" onchange="filterChips()"
                     class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="">Qualquer Operadora</option>
+                    <option value="">Qualquer</option>
                     {% for op in operators_filter %}
                     <option value="{{ op.id }}">{{ op.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="w-36 flex-shrink-0">
+            <div class="w-32 flex-shrink-0">
                 <label for="filter-chip-status"
                     class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Status</label>
                 <select id="filter-chip-status" onchange="filterChips()"
@@ -192,7 +178,7 @@
                     <option value="OTHER">Outro</option>
                 </select>
             </div>
-            <div class="w-36 flex-shrink-0">
+            <div class="w-32 flex-shrink-0">
                 <label for="filter-chip-usage"
                     class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Uso</label>
                 <select id="filter-chip-usage" onchange="filterChips()"
@@ -203,13 +189,51 @@
                     <option value="UNAVAILABLE">Indisponível</option>
                 </select>
             </div>
+            <div class="w-40 flex-shrink-0">
+                <label for="filter-chip-envelope"
+                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Envelope</label>
+                <select id="filter-chip-envelope" onchange="filterChips()"
+                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <option value="">Qualquer</option>
+                    {% for batch in all_batches %}
+                    <option value="{{ batch.id }}">{{ batch.nome|default:batch.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1 min-w-[180px]">
+                <label for="filter-chip-funcionario-obs"
+                    class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Funcionário / Observação</label>
+                <input type="text" id="filter-chip-funcionario-obs" onkeyup="filterChips()"
+                    placeholder="Nome ou texto da observação..."
+                    class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white">
+            </div>
+            <div class="flex-shrink-0">
+                <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Data ativação</span>
+                <div class="flex items-center gap-1">
+                    <input type="date" id="filter-activated-from" onchange="filterChips()" title="Início"
+                        class="w-[8.5rem] text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <span class="text-slate-400 text-xs">–</span>
+                    <input type="date" id="filter-activated-to" onchange="filterChips()" title="Fim"
+                        class="w-[8.5rem] text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                </div>
+            </div>
+            <div class="flex-shrink-0">
+                <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Recarga</span>
+                <div class="flex items-center gap-1">
+                    <input type="date" id="filter-recharge-from" onchange="filterChips()" title="Início"
+                        class="w-[8.5rem] text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <span class="text-slate-400 text-xs">–</span>
+                    <input type="date" id="filter-recharge-to" onchange="filterChips()" title="Fim"
+                        class="w-[8.5rem] text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                </div>
+            </div>
             <div class="w-[170px] flex-shrink-0">
                 <span class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Flags</span>
-                <div class="flex flex-col gap-1 justify-center h-[42px]">
+                <div class="flex flex-col gap-1 justify-center min-h-[42px]">
                     <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-700 whitespace-nowrap">
                         <input type="checkbox" id="filter-no-email" onchange="filterChips()"
                             class="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                        Sem e-mail vinculado
+                        Sem e-mail associado
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-700 whitespace-nowrap">
                         <input type="checkbox" id="filter-has-obs" onchange="filterChips()"
@@ -304,6 +328,7 @@
                         data-movement="{{ chip.last_movement_at|date:'Y-m-d'|default:'' }}"
                         data-recharge="{{ chip.recharge_due_at|date:'Y-m-d'|default:'' }}"
                         data-line="{{ chip.line_number }}"
+                        data-batch="{{ chip.batch_id|default:'' }}"
                         data-email="{{ chip.email_vinculado|yesno:'true,false' }}"
                         data-email-address="{% if chip.email_vinculado %}{{ chip.email_vinculado.address }}{% endif %}"
                         data-obs="{{ chip.observacao|yesno:'true,false' }}"
@@ -759,13 +784,25 @@
     }
     window.devolverChip = devolverChip;
 
+    function dateInRange(value, from, to) {
+        if (!from && !to) return true;
+        if (!value) return false;
+        if (from && value < from) return false;
+        if (to && value > to) return false;
+        return true;
+    }
+
     function filterChips() {
-        var textInput = ($('#filter-chip-text').val() || '').toLowerCase();
-        var funcionarioInput = ($('#filter-chip-funcionario').val() || '').toLowerCase();
-        var obsInput = ($('#filter-chip-observacao').val() || '').toLowerCase();
+        var linhaInput = ($('#filter-chip-linha').val() || '').toLowerCase();
+        var funcObsInput = ($('#filter-chip-funcionario-obs').val() || '').toLowerCase();
         var opInput = $('#filter-chip-operator').val();
         var statusInput = $('#filter-chip-status').val();
         var usageInput = $('#filter-chip-usage').val();
+        var envelopeInput = $('#filter-chip-envelope').val();
+        var activatedFrom = $('#filter-activated-from').val() || '';
+        var activatedTo = $('#filter-activated-to').val() || '';
+        var rechargeFrom = $('#filter-recharge-from').val() || '';
+        var rechargeTo = $('#filter-recharge-to').val() || '';
         var noEmailOnly = $('#filter-no-email').is(':checked');
         var hasObsOnly = $('#filter-has-obs').is(':checked');
 
@@ -774,28 +811,28 @@
             if ($row.find('td').length === 1) return;
 
             var linha = ($row.find('.chip-linha').text() || '').toLowerCase();
-            var operadora = ($row.find('.chip-operadora').text() || '').toLowerCase();
-            var envelope = ($row.find('.chip-envelope').text() || '').toLowerCase();
+            var linhaDigits = ($row.attr('data-line') || '').replace(/\D/g, '');
             var funcionario = ($row.find('.chip-funcionario').text() || '').toLowerCase();
             var observacao = ($row.attr('data-obs-text') || '').toLowerCase();
 
-            var textDigits = textInput.replace(/\D/g, '');
-            var matchText = !textInput ||
-                linha.includes(textInput) ||
-                (textDigits !== '' && linha.replace(/\D/g, '').includes(textDigits)) ||
-                operadora.includes(textInput) ||
-                envelope.includes(textInput);
+            var linhaQueryDigits = linhaInput.replace(/\D/g, '');
+            var matchLinha = !linhaInput ||
+                linha.includes(linhaInput) ||
+                (linhaQueryDigits !== '' && linhaDigits.includes(linhaQueryDigits));
 
-            var matchFuncionario = !funcionarioInput || funcionario.includes(funcionarioInput);
-            var matchObsText = !obsInput || observacao.includes(obsInput);
+            var matchFuncObs = !funcObsInput ||
+                funcionario.includes(funcObsInput) ||
+                observacao.includes(funcObsInput);
             var matchOp = !opInput || $row.attr('data-operator') === opInput;
             var matchStatus = !statusInput || $row.attr('data-status') === statusInput;
             var matchUsage = !usageInput || $row.attr('data-usage') === usageInput;
-            var hasEmail = $row.find('[id^="email-td-"]').text().includes('SIM');
-            var matchNoEmail = !noEmailOnly || !hasEmail;
+            var matchEnvelope = !envelopeInput || String($row.attr('data-batch') || '') === envelopeInput;
+            var matchActivated = dateInRange($row.attr('data-activated') || '', activatedFrom, activatedTo);
+            var matchRecharge = dateInRange($row.attr('data-recharge') || '', rechargeFrom, rechargeTo);
+            var matchNoEmail = !noEmailOnly || $row.attr('data-email') !== 'true';
             var matchHasObs = !hasObsOnly || $row.attr('data-obs') === 'true';
 
-            if (matchText && matchFuncionario && matchObsText && matchOp && matchStatus && matchUsage && matchNoEmail && matchHasObs) {
+            if (matchLinha && matchFuncObs && matchOp && matchStatus && matchUsage && matchEnvelope && matchActivated && matchRecharge && matchNoEmail && matchHasObs) {
                 $row.show();
             } else {
                 $row.hide();
