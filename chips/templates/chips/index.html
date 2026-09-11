@@ -4,15 +4,15 @@
 
 {% block content %}
 
-<div class="flex flex-col h-full" id="chips-app">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+<div class="flex flex-col h-full min-h-0 overflow-hidden" id="chips-app">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4 shrink-0">
         <div>
             <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Gestão de Chips</h2>
             <p class="text-sm text-slate-500 mt-1">Dashboard, planilha operacional, operadoras e envelopes.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <!-- Botões da aba Chips -->
-            <div data-tab-actions="chips" class="flex flex-wrap gap-2">
+            <!-- Botões da aba Chips (escondidos até a aba Chips estar ativa) -->
+            <div data-tab-actions="chips" class="flex flex-wrap gap-2 hidden">
                 <button type="button" hx-get="{% url 'chips:chip_create' %}" hx-target="#modal-container"
                     hx-swap="innerHTML"
                     class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors">
@@ -78,8 +78,12 @@
     </div>
     {% endif %}
 
-    <!-- Navegação de abas -->
-    <nav class="flex flex-wrap items-center gap-1 border-b border-slate-200 mb-6" id="chips-tabs-nav" role="tablist">
+    <!-- Navegação de abas: Dashboard primeiro, depois planilha e cadastros -->
+    <nav class="flex flex-wrap items-center gap-1 border-b border-slate-200 mb-6 shrink-0" id="chips-tabs-nav" role="tablist">
+        <button type="button" role="tab" data-tab="dashboard"
+            class="chips-tab-btn px-4 pb-3 text-sm font-semibold transition-colors border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+            Dashboard
+        </button>
         <button type="button" role="tab" data-tab="chips"
             class="chips-tab-btn px-4 pb-3 text-sm font-semibold transition-colors border-b-2 border-transparent text-slate-500 hover:text-slate-800">
             Chips
@@ -94,44 +98,19 @@
         </button>
     </nav>
 
-    <!-- ========== ABA 1: CHIPS ========== -->
-    <div class="chips-tab-panel hidden" data-tab-panel="chips">
+    <!-- ========== ABA 1: DASHBOARD ========== -->
+    <div class="chips-tab-panel hidden flex-1 overflow-y-auto pb-8" data-tab-panel="dashboard">
+        {% include "chips/_dashboard.html" %}
+    </div>
+
+    <!-- ========== ABA 2: CHIPS ========== -->
+    <div class="chips-tab-panel hidden flex-1 overflow-y-auto" data-tab-panel="chips">
         <!-- Form de devolução oculto -->
         <form id="devolver-form" method="post" action="" class="hidden">
             {% csrf_token %}
             <input type="hidden" name="envelope" id="devolver-envelope">
             <input type="hidden" name="tab" value="chips">
         </form>
-
-        <!-- Cards de Estatísticas -->
-        <div class="mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-400">
-                    <p class="text-xs font-semibold text-slate-500 uppercase">Total ativos</p>
-                    <h3 class="text-2xl font-bold text-slate-900">{{ total_chips }}</h3>
-                </div>
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
-                    <p class="text-xs font-semibold text-slate-500 uppercase">Em uso</p>
-                    <h3 class="text-2xl font-bold text-blue-600">{{ metric_in_use }}</h3>
-                </div>
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
-                    <p class="text-xs font-semibold text-slate-500 uppercase">Livres</p>
-                    <h3 class="text-2xl font-bold text-emerald-600">{{ metric_available }}</h3>
-                </div>
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-amber-500">
-                    <p class="text-xs font-semibold text-slate-500 uppercase">Vencem em 10 dias</p>
-                    <h3 class="text-2xl font-bold text-amber-600">{{ recharge_due_soon }}</h3>
-                </div>
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-red-500">
-                    <p class="text-xs font-semibold text-slate-500 uppercase">Bloqueados/Canc</p>
-                    <h3 class="text-2xl font-bold text-red-600">{{ metric_blocked_canceled }}</h3>
-                </div>
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-800">
-                    <p class="text-xs font-semibold text-slate-500 uppercase">Perdidos</p>
-                    <h3 class="text-2xl font-bold text-slate-800">{{ metric_lost }}</h3>
-                </div>
-            </div>
-        </div>
 
         <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <p class="text-sm text-slate-500">Gerencie chips do inventário, registre novos, transfira posse ou devolva à
@@ -450,91 +429,10 @@
                 <span class="text-xs text-slate-500">{{ chips|length }} chip(s) no inventário</span>
             </div>
         </div>
-
-        <!-- ========== ÚLTIMAS MOVIMENTAÇÕES ========== -->
-        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-8">
-            <div
-                class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 border-b border-slate-100 pb-4">
-                <div>
-                    <h4 class="font-bold text-slate-800 text-lg">Últimas 50 movimentações</h4>
-                    <p class="text-xs text-slate-500">Histórico detalhado de entregas, transferências e devoluções.</p>
-                </div>
-                <form method="get" class="flex items-center gap-2">
-                    <input type="hidden" name="tab" value="chips">
-                    <input type="text" name="movs_line" value="{{ movs_line|default:'' }}"
-                        placeholder="Filtrar por linha..."
-                        class="text-xs p-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-48">
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold shadow-sm transition-colors">Filtrar</button>
-                    {% if movs_line %}
-                    <a href="?tab=chips" class="text-xs text-slate-500 hover:text-slate-800 underline ml-1">Limpar</a>
-                    {% endif %}
-                </form>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm whitespace-nowrap">
-                    <thead class="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                            <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Data/Hora</th>
-                            <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Linha</th>
-                            <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Ação</th>
-                            <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Funcionário</th>
-                            <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Registrado por</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        {% for mov in recent_movements %}
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-3.5 text-slate-600 font-mono text-xs">{{ mov.timestamp|date:"d/m/Y H:i" }}</td>
-                            <td class="px-6 py-3.5 font-semibold text-slate-900">{{ mov.chip.formatted_line_number }} <span
-                                    class="text-xs font-normal text-slate-500">({{ mov.chip.operator.name }})</span>
-                            </td>
-                            <td class="px-6 py-3.5">
-                                <span class="px-2.5 py-1 rounded text-xs font-bold 
-                                    {% if mov.action == 'DELIVERY' %}bg-emerald-100 text-emerald-800
-                                    {% elif mov.action == 'TRANSFER' %}bg-indigo-100 text-indigo-800
-                                    {% else %}bg-orange-100 text-orange-800{% endif %}">
-                                    {{ mov.get_action_display }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-3.5 text-slate-800 font-medium">
-                                {% if mov.employee_user %}
-                                {{ mov.employee_user.get_full_name|default:mov.employee_user.username }}
-                                {% else %}
-                                {{ mov.employee_name|default:"—" }}
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-3.5 text-slate-500">{{ mov.registered_by.username|default:"—" }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="p-6 text-center text-slate-400">Nenhuma movimentação registrada no
-                                período.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <!-- Pagination Movimentações -->
-                <div class="flex justify-between items-center px-6 py-3 border-t border-slate-200 bg-slate-50">
-                    <span class="text-xs text-slate-500">Página {{ recent_movements.number }} de {{ recent_movements.paginator.num_pages }}</span>
-                    <div class="flex gap-1">
-                        {% if recent_movements.has_previous %}
-                        <a href="?tab=chips&movs_page={{ recent_movements.previous_page_number }}{% if movs_line %}&movs_line={{ movs_line }}{% endif %}"
-                            class="px-3 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-600 hover:bg-slate-50">Anterior</a>
-                        {% endif %}
-                        {% if recent_movements.has_next %}
-                        <a href="?tab=chips&movs_page={{ recent_movements.next_page_number }}{% if movs_line %}&movs_line={{ movs_line }}{% endif %}"
-                            class="px-3 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-600 hover:bg-slate-50">Próxima</a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- ========== ABA 3: OPERADORAS ========== -->
-    <div class="chips-tab-panel hidden" data-tab-panel="operators">
+    <div class="chips-tab-panel hidden flex-1 overflow-y-auto" data-tab-panel="operators">
         <div class="mb-4">
             <p class="text-sm text-slate-500">Operadoras de telefonia cadastradas.</p>
         </div>
@@ -594,7 +492,7 @@
     </div>
 
     <!-- ========== ABA 4: ENVELOPES ========== -->
-    <div class="chips-tab-panel hidden" data-tab-panel="envelopes">
+    <div class="chips-tab-panel hidden flex-1 overflow-y-auto" data-tab-panel="envelopes">
         <div class="mb-4">
             <p class="text-sm text-slate-500">Envelopes físicos na TI com nome e data de criação.</p>
         </div>
@@ -664,6 +562,7 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
 <script>
@@ -693,15 +592,25 @@
             if (pushState !== false) {
                 var url = new URL(window.location.href);
                 url.searchParams.set('tab', tabId);
-                if (tabId !== 'chips') {
+                // Período só faz sentido na aba Dashboard
+                if (tabId !== 'dashboard') {
                     url.searchParams.delete('date_from');
                     url.searchParams.delete('date_to');
+                    url.searchParams.delete('movs_page');
+                    url.searchParams.delete('movs_line');
                 }
                 history.replaceState({ tab: tabId }, '', url.toString());
             }
 
             if (tabId === 'chips' && window.chipsGrid) {
                 try { window.chipsGrid.redraw(true); } catch (e) { }
+            }
+            if (tabId === 'dashboard') {
+                requestAnimationFrame(function () {
+                    if (window.initChipsDashboardCharts) {
+                        window.initChipsDashboardCharts();
+                    }
+                });
             }
         }
 
@@ -1122,5 +1031,101 @@
     // Apply saved column visibility on page load
     applyColumnVisibility();
 });
+</script>
+<script>
+    /* Gráficos do dashboard de chips (Chart.js); recria ao exibir a aba visível. */
+    (function () {
+        var instancias = [];
+        var coresUso = ['#22c55e', '#2563eb', '#94a3b8'];
+        var coresStatus = ['#22c55e', '#dc2626', '#64748b', '#0f172a', '#f59e0b'];
+        var coresMov = ['#10b981', '#f97316', '#6366f1'];
+        var coresOps = ['#2563eb', '#0ea5e9', '#6366f1', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b'];
+        var coresRec = '#0d9488';
+
+        function destruir() {
+            instancias.forEach(function (chart) {
+                try { chart.destroy(); } catch (e) { }
+            });
+            instancias = [];
+        }
+
+        function lerDados() {
+            var el = document.getElementById('chips-dashboard-charts-data');
+            if (!el) return null;
+            try { return JSON.parse(el.textContent); } catch (e) { return null; }
+        }
+
+        function doughnut(id, serie, cores) {
+            var canvas = document.getElementById(id);
+            if (!canvas || typeof Chart === 'undefined') return;
+            var labels = (serie && serie.labels) || [];
+            var values = (serie && serie.values) || [];
+            if (!labels.length) return;
+            instancias.push(new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{ data: values, backgroundColor: cores, borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            }));
+        }
+
+        function barra(id, serie, cores, vertical) {
+            var canvas = document.getElementById(id);
+            if (!canvas || typeof Chart === 'undefined') return;
+            var labels = (serie && serie.labels) || [];
+            var values = (serie && serie.values) || [];
+            if (!labels.length) return;
+            var eixoValor = {
+                beginAtZero: true,
+                ticks: { precision: 0 },
+                grid: { color: '#f1f5f9' }
+            };
+            var eixoCategoria = {
+                grid: { display: false },
+                ticks: { autoSkip: false }
+            };
+            instancias.push(new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: Array.isArray(cores)
+                            ? labels.map(function (_, i) { return cores[i % cores.length]; })
+                            : cores,
+                        borderRadius: 6,
+                        maxBarThickness: 28
+                    }]
+                },
+                options: {
+                    indexAxis: vertical ? 'x' : 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: vertical
+                        ? { x: eixoCategoria, y: eixoValor }
+                        : { x: eixoValor, y: eixoCategoria }
+                }
+            }));
+        }
+
+        window.initChipsDashboardCharts = function () {
+            if (typeof Chart === 'undefined') return;
+            var data = lerDados();
+            if (!data) return;
+            destruir();
+            doughnut('chart-chips-uso', data.uso, coresUso);
+            doughnut('chart-chips-status', data.status, coresStatus);
+            barra('chart-chips-movimentacao', data.movimentacao, coresMov, false);
+            barra('chart-chips-operadoras', data.operadoras, coresOps, false);
+            barra('chart-chips-recargas', data.recargas, coresRec, true);
+        };
+    })();
 </script>
 {% endblock %}

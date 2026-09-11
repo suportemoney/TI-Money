@@ -1,0 +1,247 @@
+{{ chips_charts_data|json_script:"chips-dashboard-charts-data" }}
+
+<form method="get" action="{% url 'chips:dashboard' %}"
+      class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap gap-4 items-end">
+    <input type="hidden" name="tab" value="dashboard">
+    <div class="w-40">
+        <label for="chips-date-from" class="block text-xs font-semibold text-slate-500 uppercase mb-1">De</label>
+        <input id="chips-date-from" type="date" name="date_from" value="{{ date_from }}"
+               class="w-full text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div class="w-40">
+        <label for="chips-date-to" class="block text-xs font-semibold text-slate-500 uppercase mb-1">Até</label>
+        <input id="chips-date-to" type="date" name="date_to" value="{{ date_to }}"
+               class="w-full text-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+            Filtrar
+        </button>
+        <a href="{{ periodo_mes_atual_url }}"
+           class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+            Mês vigente
+        </a>
+        <a href="{{ periodo_mes_anterior_url }}"
+           class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+            Mês anterior
+        </a>
+    </div>
+    <p class="text-xs text-slate-400 ml-auto">Estoque atual é instantâneo; movimentações e recargas seguem o período.</p>
+</form>
+
+<h3 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">Estoque atual</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-400">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Total ativos</p>
+        <h3 class="text-2xl font-bold text-slate-900">{{ total_chips }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Em uso</p>
+        <h3 class="text-2xl font-bold text-blue-600">{{ metric_in_use }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Livres</p>
+        <h3 class="text-2xl font-bold text-emerald-600">{{ metric_available }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-amber-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Vencem em 10 dias</p>
+        <h3 class="text-2xl font-bold text-amber-600">{{ recharge_due_soon }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-red-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Bloqueados/Canc</p>
+        <h3 class="text-2xl font-bold text-red-600">{{ metric_blocked_canceled }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-800">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Perdidos</p>
+        <h3 class="text-2xl font-bold text-slate-800">{{ metric_lost }}</h3>
+    </div>
+</div>
+
+<h3 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">No período</h3>
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Entregas</p>
+        <h3 class="text-2xl font-bold text-emerald-600">{{ period_deliveries }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-indigo-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Transferências</p>
+        <h3 class="text-2xl font-bold text-indigo-600">{{ period_transfers }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-orange-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Devoluções</p>
+        <h3 class="text-2xl font-bold text-orange-600">{{ period_returns }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Recargas</p>
+        <h3 class="text-2xl font-bold text-blue-600">{{ period_recharges_count }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-teal-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Valor recargas</p>
+        <h3 class="text-2xl font-bold text-teal-600">R$ {{ period_recharges_total|floatformat:2 }}</h3>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-rose-500">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Ativações / Bloqueios</p>
+        <h3 class="text-2xl font-bold text-rose-600">{{ period_activations }} / {{ period_blocks }}</h3>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Uso dos chips</h4>
+        </div>
+        <div class="p-6">
+            {% if chips_charts_data.uso.labels %}
+            <div class="relative h-64">
+                <canvas id="chart-chips-uso" aria-label="Gráfico de uso dos chips"></canvas>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-400 text-center py-12">Sem dados de uso.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Status dos chips</h4>
+        </div>
+        <div class="p-6">
+            {% if chips_charts_data.status.labels %}
+            <div class="relative h-64">
+                <canvas id="chart-chips-status" aria-label="Gráfico de status dos chips"></canvas>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-400 text-center py-12">Sem dados de status.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Movimentações no período</h4>
+        </div>
+        <div class="p-6">
+            {% if chips_charts_data.movimentacao.labels %}
+            <div class="relative h-64">
+                <canvas id="chart-chips-movimentacao" aria-label="Gráfico de movimentações"></canvas>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-400 text-center py-12">Sem movimentações no período.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Chips por operadora</h4>
+        </div>
+        <div class="p-6">
+            {% if chips_charts_data.operadoras.labels %}
+            <div class="relative h-64">
+                <canvas id="chart-chips-operadoras" aria-label="Gráfico de chips por operadora"></canvas>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-400 text-center py-12">Sem chips ativos por operadora.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+            <h4 class="font-bold text-slate-800">Recargas por dia</h4>
+        </div>
+        <div class="p-6">
+            {% if chips_charts_data.recargas.labels %}
+            <div class="relative h-64">
+                <canvas id="chart-chips-recargas" aria-label="Gráfico de recargas por dia"></canvas>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-400 text-center py-12">Sem recargas no período.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+    <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 border-b border-slate-100 pb-4">
+        <div>
+            <h4 class="font-bold text-slate-800 text-lg">Movimentações no período</h4>
+            <p class="text-xs text-slate-500">Entregas, transferências e devoluções entre {{ date_from_label }} e {{ date_to_label }}.</p>
+        </div>
+        <form method="get" class="flex items-center gap-2">
+            <input type="hidden" name="tab" value="dashboard">
+            <input type="hidden" name="date_from" value="{{ date_from }}">
+            <input type="hidden" name="date_to" value="{{ date_to }}">
+            <input type="text" name="movs_line" value="{{ movs_line|default:'' }}"
+                   placeholder="Filtrar por linha..."
+                   class="text-xs p-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-48">
+            <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold shadow-sm transition-colors">Filtrar</button>
+            {% if movs_line %}
+            <a href="?tab=dashboard&date_from={{ date_from }}&date_to={{ date_to }}"
+               class="text-xs text-slate-500 hover:text-slate-800 underline ml-1">Limpar</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                    <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Data/Hora</th>
+                    <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Linha</th>
+                    <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Ação</th>
+                    <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Funcionário</th>
+                    <th class="px-6 py-3 font-semibold text-slate-500 uppercase text-xs">Registrado por</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for mov in recent_movements %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3.5 text-slate-600 font-mono text-xs">{{ mov.timestamp|date:"d/m/Y H:i" }}</td>
+                    <td class="px-6 py-3.5 font-semibold text-slate-900">{{ mov.chip.formatted_line_number }} <span
+                            class="text-xs font-normal text-slate-500">({{ mov.chip.operator.name }})</span>
+                    </td>
+                    <td class="px-6 py-3.5">
+                        <span class="px-2.5 py-1 rounded text-xs font-bold
+                            {% if mov.action == 'DELIVERY' %}bg-emerald-100 text-emerald-800
+                            {% elif mov.action == 'TRANSFER' %}bg-indigo-100 text-indigo-800
+                            {% else %}bg-orange-100 text-orange-800{% endif %}">
+                            {{ mov.get_action_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 text-slate-800 font-medium">
+                        {% if mov.employee_user %}
+                        {{ mov.employee_user.get_full_name|default:mov.employee_user.username }}
+                        {% else %}
+                        {{ mov.employee_name|default:"—" }}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3.5 text-slate-500">{{ mov.registered_by.username|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="p-6 text-center text-slate-400">Nenhuma movimentação registrada no período.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if recent_movements.paginator %}
+        <div class="flex justify-between items-center px-6 py-3 border-t border-slate-200 bg-slate-50">
+            <span class="text-xs text-slate-500">Página {{ recent_movements.number }} de {{ recent_movements.paginator.num_pages }}</span>
+            <div class="flex gap-1">
+                {% if recent_movements.has_previous %}
+                <a href="?tab=dashboard&date_from={{ date_from }}&date_to={{ date_to }}&movs_page={{ recent_movements.previous_page_number }}{% if movs_line %}&movs_line={{ movs_line }}{% endif %}"
+                   class="px-3 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-600 hover:bg-slate-50">Anterior</a>
+                {% endif %}
+                {% if recent_movements.has_next %}
+                <a href="?tab=dashboard&date_from={{ date_from }}&date_to={{ date_to }}&movs_page={{ recent_movements.next_page_number }}{% if movs_line %}&movs_line={{ movs_line }}{% endif %}"
+                   class="px-3 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-600 hover:bg-slate-50">Próxima</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% include "core/_audit_log_table.html" with registros=audit_logs titulo=audit_titulo %}
