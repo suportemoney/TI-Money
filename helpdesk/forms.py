@@ -206,10 +206,11 @@ class TicketCreateForm(forms.ModelForm):
         """Funil (tags) substitui a categoria específica nos formulários da TI."""
         if 'tags' not in self.fields:
             return
+        # Widget antes do queryset: o setter copia as choices para o widget atual
+        self.fields['tags'].widget = FunnelMultiSelectWidget()
         self.fields['tags'].queryset = TicketTag.objects.order_by('nome')
         self.fields['tags'].required = False
         self.fields['tags'].label = 'Funil'
-        self.fields['tags'].widget = FunnelMultiSelectWidget()
 
     def _configurar_equipes_usuario(self):
         """Restringe equipe às equipes do usuário (supervisor, líder, multiplicador)."""
@@ -480,10 +481,11 @@ class TicketUpdateForm(forms.ModelForm):
         """Funil (tags) substitui a categoria específica nos formulários da TI."""
         if 'tags' not in self.fields:
             return
+        # Widget antes do queryset: o setter copia as choices para o widget atual
+        self.fields['tags'].widget = FunnelMultiSelectWidget()
         self.fields['tags'].queryset = TicketTag.objects.order_by('nome')
         self.fields['tags'].required = False
         self.fields['tags'].label = 'Funil'
-        self.fields['tags'].widget = FunnelMultiSelectWidget()
 
 
 class HelpdeskRestrictionGroupForm(forms.ModelForm):
